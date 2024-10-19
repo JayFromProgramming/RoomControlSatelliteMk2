@@ -42,7 +42,7 @@ public:
     typedef struct {
         SemaphoreHandle_t mutex; // Release this mutex after processing the message
         target_endpoint endpoint;
-        char data[512];
+        char data[1024];
         size_t length;
     } uplink_message_t;
 

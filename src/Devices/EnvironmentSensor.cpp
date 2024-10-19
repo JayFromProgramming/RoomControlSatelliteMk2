@@ -19,11 +19,16 @@ void EnvironmentSensor::RTOSLoop(void* pvParameters) {
     auto* self = static_cast<EnvironmentSensor *>(pvParameters);
     TickType_t xLastWakeTime = xTaskGetTickCount();
     for (;;) {
-        if (self->aht20.available()) {
+        if (self->aht20.available() && self->aht20.isConnected()) {
             self->temperature = self->aht20.getTemperature();
             self->humidity = self->aht20.getHumidity();
             // Send the event to the RoomInterface
             const auto event = EnvironmentSensor::getScratchSpace();
+            if (event == nullptr) {
+                Serial.println("Failed to get scratch space for event");
+                continue;
+            }
+            event->objectName = writeStringToScratchSpace(self->getObjectName(), event);
             event->eventName = writeStringToScratchSpace("environment_data_updated", event);
             event->numArgs = 2;
             event->args[0].type = ParsedArg::FLOAT;
@@ -38,8 +43,10 @@ void EnvironmentSensor::RTOSLoop(void* pvParameters) {
 
 JsonVariant EnvironmentSensor::getDeviceData() {
     deviceData["type"] = getObjectType();
-    deviceData["data"]["state"]["temperature"] = temperature;
-    deviceData["data"]["state"]["humidity"] = humidity;
-    deviceData["health"]["online"] = aht20.available();
+    deviceData["data"]["temperature"] = temperature;
+    deviceData["data"]["humidity"] = humidity;
+    deviceData["health"]["online"] = aht20.isConnected();
+    deviceData["health"]["fault"] = false;
+    deviceData["health"]["reason"] = aht20.isConnected() ? "" : "Sensor Offline";
     return deviceData;
 }

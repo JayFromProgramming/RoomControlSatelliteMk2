@@ -33,8 +33,8 @@ void RoomInterface::sendUplink() const {
         root["objects"][current->device->getObjectName()] = deviceData;
     }
     // Serialize the json data.
-    char buffer[512] = {0};
-    memset(uplinkData->payload, 0, 512);
+    char buffer[1024] = {0};
+    memset(uplinkData->payload, 0, 1024);
     const auto serialized = serializeJson(payload, &buffer, sizeof(buffer));
     memcpy(uplinkData->payload, buffer, serialized);
     uplinkData->length = serialized;

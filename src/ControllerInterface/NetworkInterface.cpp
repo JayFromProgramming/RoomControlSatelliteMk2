@@ -100,12 +100,15 @@ void NetworkInterface::send_messages() {
             uplink_client.begin(CENTRAL_HOSTNAME, CENTRAL_PORT,
                 message.endpoint == EVENT ? "/event" : "/uplink");
             uplink_client.addHeader("Content-Type", "application/json");
-            uplink_client.addHeader("Authorization", CENTRAL_AUTH);
+            uplink_client.setUserAgent("ESP32");
+            // uplink_client.addHeader("Authorization", CENTRAL_AUTH);
+            // For debug print the message
             const int http_code = uplink_client.POST(
                 reinterpret_cast<uint8_t *>(message.data), message.length);
             // Serial.print("Message sent with code: ");
             // Serial.println(http_code);
             if (http_code != 200) {
+                Serial.printf("Failed to send message with code: %d\n", http_code);
                 failed_connection_attempts++;
             }
             taskYIELD(); // Yield to other tasks
