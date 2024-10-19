@@ -15,7 +15,7 @@ char* RoomDevice::writeStringToScratchSpace(const char *string, ParsedEvent_t *s
     return RoomInterface::write_string_to_scratch_space(string, scratchSpace);
 }
 
-void RoomDevice::sendEvent(const ParsedEvent_t *data) {
+void RoomDevice::sendEvent(ParsedEvent_t *data) {
     MainRoomInterface.sendEvent(data);
 }
 

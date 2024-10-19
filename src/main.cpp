@@ -15,7 +15,7 @@ RoomInterface::TaskPile allHandles;
 
 Radiator* radiator;
 MotionDetector* motionDetector;
-// EnvironmentSensor* environmentSensor;
+EnvironmentSensor* environmentSensor;
 // BlueStalker* blueStalker;
 
 const char* task_state_to_string(const eTaskState state) {
@@ -73,7 +73,7 @@ void setup() {
     radiator = new Radiator();
     motionDetector = new MotionDetector();
     // blueStalker = new BlueStalker();
-    // environmentSensor = new EnvironmentSensor();
+    environmentSensor = new EnvironmentSensor();
     // delay(1000);
     Serial.println("Starting up all Tasks...");
     MainRoomInterface.begin();

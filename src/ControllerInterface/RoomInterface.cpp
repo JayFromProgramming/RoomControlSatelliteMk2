@@ -57,6 +57,7 @@ void RoomInterface::uplinkNow() const {
         // xTaskDelayUntil(&roomInterface->lastWakeTime, roomInterface->loopInterval);
         // This will either block until the semaphore is given or timeout after the loopInterval and send the uplink.
         xSemaphoreTake(roomInterface->uplinkSemaphore, roomInterface->loopInterval);
+        vTaskDelay(1000 / portTICK_PERIOD_MS); // Add a 1 second constant delay
     }
 }
 
@@ -80,7 +81,7 @@ void RoomInterface::uplinkNow() const {
  * Send an event to the CENTRAL server.
  * @param event A pointer to a parsed event structure from the working space already filled
  */
-void RoomInterface::sendEvent(const ParsedEvent_t* event) {
+void RoomInterface::sendEvent(ParsedEvent_t* event) {
     // return;
     auto document = JsonDocument();
     const auto root = document.to<JsonObject>();
@@ -105,12 +106,7 @@ void RoomInterface::sendEvent(const ParsedEvent_t* event) {
             default: break;
         }
     }
-    if (event->numArgs > 0) {
-        root["args"] = args;
-    } else {
-        // Make sure it's an empty array not a null value.
-        root["args"] = JsonArray();
-    }
+    root["args"] = args;
     // Implement the kwargs object later.
     root["kwargs"] = JsonObject();
     // Serialize the json data.
@@ -118,6 +114,8 @@ void RoomInterface::sendEvent(const ParsedEvent_t* event) {
     const auto serialized = serializeJson(document, &buffer, sizeof(buffer));
     // Queue the message to be sent to CENTRAL
     networkInterface->queue_message(NetworkInterface::EVENT, buffer, serialized);
+    memset(event, 0, sizeof(ParsedEvent_t));
+    event->finished = true;
 }
 
 /**

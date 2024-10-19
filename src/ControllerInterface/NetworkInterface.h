@@ -8,8 +8,9 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include "../secrets.h"
+#include "secrets.h"
 #include <ESPAsyncWebServer.h>
+
 
 class NetworkInterface {
 

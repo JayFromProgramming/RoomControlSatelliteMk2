@@ -153,7 +153,7 @@ public:
 
     static void eventLoop(void *pvParameters);
 
-    void sendEvent(const ParsedEvent_t* event) ;
+    void sendEvent(ParsedEvent_t* event) ;
 
     ParsedEvent_t* eventParse(const char* data) const;
 

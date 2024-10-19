@@ -8,7 +8,7 @@ SemaphoreHandle_t motionEventMutex;
 
 MotionDetector::MotionDetector() {
     Serial.println("Initializing Motion Detector");
-    pinMode(MOTION_DETECTOR_PIN, INPUT_PULLDOWN);
+    pinMode(MOTION_DETECTOR_PIN, INPUT_PULLUP);
     motionEventMutex = xSemaphoreCreateBinary();
     attachInterrupt(digitalPinToInterrupt(MOTION_DETECTOR_PIN), MotionDetector::pinISR, CHANGE);
     motionDetected = digitalRead(MOTION_DETECTOR_PIN);
@@ -37,16 +37,17 @@ void MotionDetector::startTask(TaskHandle_t *taskHandle) {
             }
             self->uplinkNow();
             // Send the event to the RoomInterface
-            // const auto event = MotionDetector::getScratchSpace();
-            // if (event == nullptr) {
-            //     Serial.println("Failed to get scratch space for event");
-            //     continue;
-            // }
-            // event->eventName = writeStringToScratchSpace("motion_detected", event);
-            // event->numArgs = 1;
-            // event->args[0].type = ParsedArg::BOOL;
-            // event->args[0].value.boolVal = self->motionDetected;
-            // MotionDetector::sendEvent(event);
+            const auto event = MotionDetector::getScratchSpace();
+            if (event == nullptr) {
+                Serial.println("Failed to get scratch space for event");
+                continue;
+            }
+            event->objectName = writeStringToScratchSpace(self->getObjectName(), event);
+            event->eventName = writeStringToScratchSpace("motion_detected", event);
+            event->numArgs = 1;
+            event->args[0].type = ParsedArg::BOOL;
+            event->args[0].value.boolVal = self->motionDetected;
+            MotionDetector::sendEvent(event);
         }
     }
 }

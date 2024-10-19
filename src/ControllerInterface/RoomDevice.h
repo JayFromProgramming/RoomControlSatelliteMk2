@@ -23,7 +23,7 @@ public:
     const char* object_name;
 
     const uint16_t PRIORITY = 1; // Default priority is the lowest
-    const uint16_t STACK_SIZE = 1024;
+    const uint16_t STACK_SIZE = 4096;
 
     JsonDocument deviceData;
 
@@ -52,7 +52,7 @@ protected:
 
     static char* writeStringToScratchSpace(const char* string, ParsedEvent_t* scratchSpace);
 
-    static void sendEvent(const ParsedEvent_t* event) ;
+    static void sendEvent(ParsedEvent_t* event) ;
 
 public:
     /**
