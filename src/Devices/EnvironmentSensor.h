@@ -26,6 +26,8 @@ public:
 
     void startTask(TaskHandle_t* taskHandle) override;
 
+    static float_t celsiusToFahrenheit(float_t celsius);
+
     [[noreturn]] static void RTOSLoop(void* pvParameters);
 
     JsonVariant getDeviceData() override;

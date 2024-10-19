@@ -44,11 +44,13 @@ size_t index, size_t total) const {
     //     request->send(400, "text/plain", "Chunked messages not supported");
     //     return;
     // }
+    digitalWrite(ACTIVITY_LED, HIGH);
     Serial.println("Received event");
     // Copy the data into a downlink message and send it to the downlink queue
     downlink_message_t message;
     if (len > 512) {
         request->send(400, "text/plain", "Payload too large: Max 512 bytes");
+        digitalWrite(ACTIVITY_LED, LOW);
         return;
     }
     memcpy(message.data, data, len);
@@ -57,9 +59,11 @@ size_t index, size_t total) const {
     const auto result = xQueueSend(downlink_queue, &message, portMAX_DELAY);
     if (result != pdTRUE) {
         request->send(500, "text/plain", "Queue full");
+        digitalWrite(ACTIVITY_LED, LOW);
         return;
     }
     request->send(200, "text/plain", "In Queue");
+    digitalWrite(ACTIVITY_LED, LOW);
 }
 
 
@@ -97,6 +101,7 @@ void NetworkInterface::send_messages() {
     uplink_message_t message;
     while (true) {
         if (xQueueReceive(uplink_queue, &message, 0) == pdTRUE) {
+            digitalWrite(ACTIVITY_LED, HIGH);
             uplink_client.begin(CENTRAL_HOSTNAME, CENTRAL_PORT,
                 message.endpoint == EVENT ? "/event" : "/uplink");
             uplink_client.addHeader("Content-Type", "application/json");
@@ -111,6 +116,7 @@ void NetworkInterface::send_messages() {
                 Serial.printf("Failed to send message with code: %d\n", http_code);
                 failed_connection_attempts++;
             }
+            digitalWrite(ACTIVITY_LED, LOW);
             taskYIELD(); // Yield to other tasks
         } else break;
     }

@@ -15,12 +15,18 @@ void EnvironmentSensor::startTask(TaskHandle_t* taskHandle) {
         "EnvironmentSensor", STACK_SIZE, this, PRIORITY, taskHandle);
 }
 
+float_t EnvironmentSensor::celsiusToFahrenheit(float_t celsius_value) {
+    return (celsius_value * (9.f / 5.f)) + 32;
+}
+
+[[noreturn]]
+
 void EnvironmentSensor::RTOSLoop(void* pvParameters) {
     auto* self = static_cast<EnvironmentSensor *>(pvParameters);
     TickType_t xLastWakeTime = xTaskGetTickCount();
     for (;;) {
         if (self->aht20.available() && self->aht20.isConnected()) {
-            self->temperature = self->aht20.getTemperature();
+            self->temperature = celsiusToFahrenheit(self->aht20.getTemperature());
             self->humidity = self->aht20.getHumidity();
             // Send the event to the RoomInterface
             const auto event = EnvironmentSensor::getScratchSpace();

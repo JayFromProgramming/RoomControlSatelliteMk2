@@ -11,6 +11,7 @@
 #include "secrets.h"
 #include <ESPAsyncWebServer.h>
 
+#define ACTIVITY_LED 2
 
 class NetworkInterface {
 
@@ -91,7 +92,7 @@ private:
 public:
 
     NetworkInterface() : downlink_server(47670) {
-
+        pinMode(ACTIVITY_LED, OUTPUT);
     }
 
     static void network_task(void *pvParameters);

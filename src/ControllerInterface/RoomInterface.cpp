@@ -88,25 +88,24 @@ void RoomInterface::sendEvent(ParsedEvent_t* event) {
     root["name"] = "RoomDevice";
     root["object"] = event->objectName;
     root["event"] = event->eventName;
-    const auto args = JsonArray();
+    root["args"] = JsonArray();
     for (int i = 0; i < event->numArgs; i++) {
         switch (event->args[i].type) {
             case ParsedArg::BOOL:
-                args.add(event->args[i].value.boolVal);
+                root["args"].add(event->args[i].value.boolVal);
                 break;
             case ParsedArg::INT:
-                args.add(event->args[i].value.intVal);
+                root["args"].add(event->args[i].value.intVal);
                 break;
             case ParsedArg::FLOAT:
-                args.add(event->args[i].value.floatVal);
+                root["args"].add(event->args[i].value.floatVal);
                 break;
             case ParsedArg::STRING:
-                args.add(event->args[i].value.stringVal);
+                root["args"].add(event->args[i].value.stringVal);
                 break;
             default: break;
         }
     }
-    root["args"] = args;
     // Implement the kwargs object later.
     root["kwargs"] = JsonObject();
     // Serialize the json data.

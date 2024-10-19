@@ -5,9 +5,11 @@
 
 #include "ControllerInterface/RoomInterface.h"
 // #include "Devices/Radiator.h"
-#include <esp_system.h>
-// #include <Devices/BlueStalker.h>
-#include <esp32/rom/ets_sys.h>
+// #include <esp_system.h>
+#include <Devices/BlueStalker.h>
+// #include <esp32/rom/ets_sys.h>
+
+#define DEBUG 1
 
 extern RoomInterface MainRoomInterface;
 
@@ -84,6 +86,7 @@ void loop() {
     TickType_t xLastWakeTime = xTaskGetTickCount();
     allHandles = MainRoomInterface.getAllTaskHandles();
     while (true) {
+#ifdef DEBUG
         Serial.println("Debug dump");
         Serial.println("--------------------");
         Serial.println("-Current Time");
@@ -132,6 +135,7 @@ void loop() {
         Serial.println("-End Task Information");
 
         Serial.println("--------------------");
+#endif
 
         // vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(5000));
         vTaskDelay(5000);
