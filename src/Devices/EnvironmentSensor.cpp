@@ -28,6 +28,7 @@ void EnvironmentSensor::RTOSLoop(void* pvParameters) {
         if (self->aht20.available() && self->aht20.isConnected()) {
             self->temperature = celsiusToFahrenheit(self->aht20.getTemperature());
             self->humidity = self->aht20.getHumidity();
+            self->has_data = true;
             // Send the event to the RoomInterface
             const auto event = EnvironmentSensor::getScratchSpace();
             if (event == nullptr) {
@@ -49,10 +50,22 @@ void EnvironmentSensor::RTOSLoop(void* pvParameters) {
 
 JsonVariant EnvironmentSensor::getDeviceData() {
     deviceData["type"] = getObjectType();
+
     deviceData["data"]["temperature"] = temperature;
     deviceData["data"]["humidity"] = humidity;
-    deviceData["health"]["online"] = aht20.isConnected();
-    deviceData["health"]["fault"] = false;
-    deviceData["health"]["reason"] = aht20.isConnected() ? "" : "Sensor Offline";
+
+    if (aht20.isConnected() && temperature != 0 && humidity != 0) {
+        deviceData["health"]["online"] = true;
+        deviceData["health"]["fault"] = false;
+        deviceData["health"]["reason"] = "";
+    } else if (!aht20.isConnected()) {
+        deviceData["health"]["online"] = true;
+        deviceData["health"]["fault"] = true;
+        deviceData["health"]["reason"] = "Sensor Offline";
+    } else {
+        deviceData["health"]["online"] = false;
+        deviceData["health"]["fault"] = true;
+        deviceData["health"]["reason"] = "No Data";
+    }
     return deviceData;
 }

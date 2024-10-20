@@ -49,6 +49,7 @@ public:
 
     struct UplinkDataStruct {
         char* payload;
+        SemaphoreHandle_t mutex; // The mutex is locked when a new uplink is being generated
         size_t length;
     };
 
@@ -106,8 +107,6 @@ public:
     network_state_t link_status();
 
     void queue_message(target_endpoint endpoint, const char *data, size_t length) const;
-
-    void sync_rtc();
 
     static boolean ping_dns();
 

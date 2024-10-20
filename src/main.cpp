@@ -6,10 +6,11 @@
 #include "ControllerInterface/RoomInterface.h"
 // #include "Devices/Radiator.h"
 // #include <esp_system.h>
+#include <esp_task_wdt.h>
 #include <Devices/BlueStalker.h>
 // #include <esp32/rom/ets_sys.h>
 
-#define DEBUG 1
+// #define DEBUG 0
 
 extern RoomInterface MainRoomInterface;
 
@@ -69,6 +70,7 @@ void setup() {
     Serial.println("WiFi started.");
     if (WiFi.waitForConnectResult() != WL_CONNECTED) {
         Serial.println("WiFi failed to connect.");
+        esp_restart();
         return;
     }
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
@@ -80,6 +82,7 @@ void setup() {
     Serial.println("Starting up all Tasks...");
     MainRoomInterface.begin();
     Serial.println("Task startup complete.");
+    esp_task_wdt_init(1, true);
 }
 
 void loop() {

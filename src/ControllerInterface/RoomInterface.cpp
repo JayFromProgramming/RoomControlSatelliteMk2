@@ -34,10 +34,12 @@ void RoomInterface::sendUplink() const {
     }
     // Serialize the json data.
     char buffer[1024] = {0};
+    xSemaphoreTake(uplinkData->mutex, portMAX_DELAY);
     memset(uplinkData->payload, 0, 1024);
     const auto serialized = serializeJson(payload, &buffer, sizeof(buffer));
     memcpy(uplinkData->payload, buffer, serialized);
     uplinkData->length = serialized;
+    xSemaphoreGive(uplinkData->mutex);
     // Queue the message to be sent to CENTRAL
     networkInterface->queue_message(NetworkInterface::UPLINK, buffer, serialized);
 }
@@ -129,7 +131,7 @@ void RoomInterface::sendEvent(ParsedEvent_t* event) {
  * @return
  */
 ParsedEvent_t* RoomInterface::eventParse(const char* data) const {
-    Serial.println("Parsing Event");
+    // Serial.println("Parsing Event");
     auto* working_space = get_free_scratch_space();
     if (working_space == nullptr) {
         Serial.println("Failed to get scratch space for event");
@@ -173,11 +175,11 @@ ParsedEvent_t* RoomInterface::eventParse(const char* data) const {
 }
 
 void RoomInterface::eventExecute(ParsedEvent_t* event) const {
-    Serial.printf("Executing Event: %s\n", event->eventName);
+    // Serial.printf("Executing Event: %s\n", event->eventName);
     for (auto current = devices; current != nullptr; current = current->next) {
         // Serial.printf("Checking Device: %s : %s\n", current->device->getObjectName(), event->objectName);
         if (strcmp(current->device->getObjectName(), event->objectName) == 0) {
-            Serial.printf("Sending Event to: %s\n", current->device->getObjectName());
+            // Serial.printf("Sending Event to: %s\n", current->device->getObjectName());
             current->device->processEvent(event->eventName, event);
         }
     }

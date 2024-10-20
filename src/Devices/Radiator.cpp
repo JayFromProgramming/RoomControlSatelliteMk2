@@ -7,7 +7,7 @@
 Radiator::Radiator() {
     Serial.println("Initializing Radiator");
     pinMode(RADIATOR_PIN, OUTPUT);
-    digitalWrite(RADIATOR_PIN, LOW);
+    digitalWrite(RADIATOR_PIN, HIGH);
     addEventCallback("set_on", [](RoomDevice* self, const ParsedEvent_t* data) {
         const auto radiator = static_cast<Radiator*>(self);
         radiator->setOn(data->args[0].value.boolVal);
@@ -42,7 +42,7 @@ void Radiator::RTOSLoop(void* pvParameters) {
 
 void Radiator::setOn(const boolean on) {
     this->on = on;
-    digitalWrite(RADIATOR_PIN, on ? HIGH : LOW);
+    digitalWrite(RADIATOR_PIN, on ? LOW : HIGH);
     uplinkNow(); // Force a transmission of the device data.
     // Send an event to the controller to update the state of the device.
     // const auto event = getScratchSpace();

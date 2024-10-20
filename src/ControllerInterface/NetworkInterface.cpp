@@ -34,7 +34,11 @@ void NetworkInterface::on_downlink(AsyncWebServerRequest *request, uint8_t *data
 
 void NetworkInterface::on_uplink(AsyncWebServerRequest *request, uint8_t *data, size_t len,
     size_t index, size_t total) const {
+    analogWrite(ACTIVITY_LED, 128);
+    xSemaphoreTake(this->uplinkData->mutex, portMAX_DELAY);
     request->send(200, "application/json", this->uplinkData->payload);
+    analogWrite(ACTIVITY_LED, 0);
+    xSemaphoreGive(this->uplinkData->mutex);
 }
 
 void NetworkInterface::on_event(AsyncWebServerRequest *request, uint8_t *data, size_t len,
@@ -44,13 +48,13 @@ size_t index, size_t total) const {
     //     request->send(400, "text/plain", "Chunked messages not supported");
     //     return;
     // }
-    digitalWrite(ACTIVITY_LED, HIGH);
-    Serial.println("Received event");
+    analogWrite(ACTIVITY_LED, 64);
+    // Serial.println("Received event");
     // Copy the data into a downlink message and send it to the downlink queue
     downlink_message_t message;
     if (len > 512) {
         request->send(400, "text/plain", "Payload too large: Max 512 bytes");
-        digitalWrite(ACTIVITY_LED, LOW);
+        analogWrite(ACTIVITY_LED, 0);
         return;
     }
     memcpy(message.data, data, len);
@@ -59,11 +63,11 @@ size_t index, size_t total) const {
     const auto result = xQueueSend(downlink_queue, &message, portMAX_DELAY);
     if (result != pdTRUE) {
         request->send(500, "text/plain", "Queue full");
-        digitalWrite(ACTIVITY_LED, LOW);
+        analogWrite(ACTIVITY_LED, 0);
         return;
     }
     request->send(200, "text/plain", "In Queue");
-    digitalWrite(ACTIVITY_LED, LOW);
+    analogWrite(ACTIVITY_LED, 0);
 }
 
 
@@ -71,19 +75,24 @@ size_t index, size_t total) const {
     auto *network_interface = static_cast<NetworkInterface *>(pvParameters);
     while (true) {
         network_interface->last_connection_attempt = millis();
-        switch (network_interface->link_status()) {
-            case WIRELESS_DOWN:
-                // network_interface->check_wifi_health();
-                break;
-            case NETWORK_DOWN:
-            case CENTRAL_DOWN:
-                break;
-            case LINK_OK:
-                network_interface->send_messages();
-                break;
-            default:
-                break;
+        if (WiFi.isConnected()) {
+            network_interface->send_messages();
+        } else {
+            Serial.println("WiFi not connected");
         }
+        // switch (network_interface->link_status()) {
+        //     case WIRELESS_DOWN:
+        //         // network_interface->check_wifi_health();
+        //         break;
+        //     case NETWORK_DOWN:
+        //     case CENTRAL_DOWN:
+        //         break;
+        //     case LINK_OK:
+        //
+        //         break;
+        //     default:
+        //         break;
+        // }
         vTaskDelay(100);
     }
 }
@@ -101,11 +110,14 @@ void NetworkInterface::send_messages() {
     uplink_message_t message;
     while (true) {
         if (xQueueReceive(uplink_queue, &message, 0) == pdTRUE) {
-            digitalWrite(ACTIVITY_LED, HIGH);
+            analogWrite(ACTIVITY_LED, 32);
+            // Init a timer to keep track of how long it takes to send a message
+            const uint32_t start_time = millis();
             uplink_client.begin(CENTRAL_HOSTNAME, CENTRAL_PORT,
                 message.endpoint == EVENT ? "/event" : "/uplink");
             uplink_client.addHeader("Content-Type", "application/json");
             uplink_client.setUserAgent("ESP32");
+            uplink_client.setTimeout(5000);
             // uplink_client.addHeader("Authorization", CENTRAL_AUTH);
             // For debug print the message
             const int http_code = uplink_client.POST(
@@ -116,15 +128,12 @@ void NetworkInterface::send_messages() {
                 Serial.printf("Failed to send message with code: %d\n", http_code);
                 failed_connection_attempts++;
             }
-            digitalWrite(ACTIVITY_LED, LOW);
+            uplink_client.end();
+            Serial.printf("Message sent in %d ms\n", millis() - start_time);
+            analogWrite(ACTIVITY_LED, 0);
             taskYIELD(); // Yield to other tasks
         } else break;
     }
-}
-
-void NetworkInterface::sync_rtc() {
-    // Send an NTP request to the a NTP server to set the onboard RTC
-
 }
 
 /**

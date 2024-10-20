@@ -19,6 +19,7 @@ public:
 
     float_t temperature = 0;
     float_t humidity = 0;
+    boolean has_data = false;
 
     AHT20 aht20;
 

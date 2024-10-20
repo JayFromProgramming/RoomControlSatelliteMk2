@@ -68,6 +68,7 @@ public:
         // The network interface runs on Core 0
         uplinkData->payload = uplink_buffer;
         uplinkData->length = 0;
+        uplinkData->mutex = xSemaphoreCreateMutex(); // The mutex is locked when accessing the uplink data
         networkInterface->pass_uplink_data(uplinkData);
         networkInterface->begin();
         for (auto & i : argumentScratchSpace) {
