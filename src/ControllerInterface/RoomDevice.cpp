@@ -20,7 +20,7 @@ void RoomDevice::sendEvent(ParsedEvent_t *data) {
 }
 
 void RoomDevice::uplinkNow() {
-    MainRoomInterface.sendUplink();
+    MainRoomInterface.uplinkNow(this->getObjectName());
 }
 
 // const char RoomDevice::object_type[] = "RoomDevice";
@@ -58,7 +58,6 @@ void RoomDevice::processEvent(const char* event, const ParsedEvent_t* data) {
     while (current != nullptr) {
         if (strcmp(current->event_name, event) == 0) {
             // Serial.print("Processing Event: ");
-            Serial.println(event);
             current->callback(this, data);
         }
         current = current->next;

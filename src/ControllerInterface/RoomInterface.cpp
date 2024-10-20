@@ -18,9 +18,7 @@ void RoomInterface::startDeviceLoops() const {
     }
 }
 
-void RoomInterface::sendUplink() const {
-    // return;
-    Serial.println("Sending Uplink");
+void RoomInterface::sendUplink() {
     auto payload = JsonDocument();
     const auto root = payload.to<JsonObject>();
     root["name"] = "RoomDevice";
@@ -29,9 +27,16 @@ void RoomInterface::sendUplink() const {
     root["auth"] = "AAAAAA";
     // Add all the device data to the payload.
     for (auto current = devices; current != nullptr; current = current->next) {
+        if (uplink_target_device != nullptr &&
+            strcmp(current->device->getObjectName(), uplink_target_device) != 0) {
+            continue;
+        }
         const auto deviceData = current->device->getDeviceData();
         root["objects"][current->device->getObjectName()] = deviceData;
     }
+    Serial.printf("Sending Uplink: %s : %d\n", uplink_target_device == nullptr ? "All" : uplink_target_device,
+        root["objects"].size());
+    uplink_target_device = nullptr;
     // Serialize the json data.
     char buffer[1024] = {0};
     xSemaphoreTake(uplinkData->mutex, portMAX_DELAY);
@@ -44,14 +49,21 @@ void RoomInterface::sendUplink() const {
     networkInterface->queue_message(NetworkInterface::UPLINK, buffer, serialized);
 }
 
-void RoomInterface::uplinkNow() const {
+void RoomInterface::uplinkNow(char* target_device) {
+    xSemaphoreTake(exclusive_uplink_mutex, portMAX_DELAY);
+    if (uplink_target_device != nullptr) { // The uplink task is still processing a previous exclusive uplink
+        xSemaphoreGive(exclusive_uplink_mutex); // Release the mutex and abort the uplink
+        Serial.println("Failed to send exclusive uplink, previous uplink still processing");
+        return;
+    }
+    uplink_target_device = target_device;
     xSemaphoreGive(uplinkSemaphore);
 }
 
 
 [[noreturn]] void RoomInterface::interfaceLoop(void *pvParameters) {
     Serial.println("Starting Room Interface Loop");
-    const auto* roomInterface = static_cast<RoomInterface*>(pvParameters);
+    auto* roomInterface = static_cast<RoomInterface*>(pvParameters);
     // roomInterface->lastWakeTime = xTaskGetTickCount();
     roomInterface->startDeviceLoops();
     while (true) {
@@ -59,7 +71,7 @@ void RoomInterface::uplinkNow() const {
         // xTaskDelayUntil(&roomInterface->lastWakeTime, roomInterface->loopInterval);
         // This will either block until the semaphore is given or timeout after the loopInterval and send the uplink.
         xSemaphoreTake(roomInterface->uplinkSemaphore, roomInterface->loopInterval);
-        vTaskDelay(1000 / portTICK_PERIOD_MS); // Add a 1 second constant delay
+        // vTaskDelay(1000 / portTICK_PERIOD_MS); // Add a 1 second constant delay
     }
 }
 

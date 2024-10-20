@@ -71,19 +71,25 @@ private:
     uint8_t failed_connection_attempts = 0;
     network_state_t last_state = WIRELESS_DOWN;
 
-
+    struct body_data_t {
+        uint8_t data[1024];
+        size_t length;
+    };
 
     QueueHandle_t uplink_queue;
 
     void send_messages();
 
-    void on_downlink(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) const;
+    void on_downlink(AsyncWebServerRequest *request) const;
 
-    void on_event(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) const;
+    void on_body_data(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) const;
 
-    void on_uplink(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) const;
+    void on_event(AsyncWebServerRequest *request) const;
+
+    void on_uplink(AsyncWebServerRequest *request) const;
 
     uint32_t last_connection_attempt = 0;
+    uint32_t last_transmission = 0;
     const uint32_t connection_interval = 5000;
     WiFiClient wifi_client;
     AsyncWebServer downlink_server;

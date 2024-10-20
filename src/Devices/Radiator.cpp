@@ -42,6 +42,7 @@ void Radiator::RTOSLoop(void* pvParameters) {
 
 void Radiator::setOn(const boolean on) {
     this->on = on;
+    Serial.printf("Radiator has been set %s\n", on ? "on" : "off");
     digitalWrite(RADIATOR_PIN, on ? LOW : HIGH);
     uplinkNow(); // Force a transmission of the device data.
     // Send an event to the controller to update the state of the device.

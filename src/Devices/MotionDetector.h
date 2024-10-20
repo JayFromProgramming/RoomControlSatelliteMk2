@@ -26,6 +26,10 @@ public:
         return object_type;
     }
 
+    char* getObjectName() override {
+        return const_cast<char *>(object_name);
+    }
+
     MotionDetector();
 
     static void IRAM_ATTR pinISR();

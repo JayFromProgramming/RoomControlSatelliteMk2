@@ -41,6 +41,10 @@ public:
         return object_type;
     }
 
+    char* getObjectName() override {
+        return const_cast<char *>(object_name);
+    }
+
 };
 
 

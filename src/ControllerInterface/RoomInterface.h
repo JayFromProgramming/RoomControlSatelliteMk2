@@ -9,6 +9,7 @@
 #include "RoomDevice.h"
 #include "RoomInterfaceDatastructures.h"
 #include <ArduinoJson.h>
+#include <esp_task_wdt.h>
 
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -56,6 +57,8 @@ private:
     DeviceList* devices = nullptr;
     SystemTasks* system_tasks = new SystemTasks[3];
     SemaphoreHandle_t uplinkSemaphore = xSemaphoreCreateBinary();
+    SemaphoreHandle_t exclusive_uplink_mutex = xSemaphoreCreateMutex();
+    char* uplink_target_device = nullptr;
 
 public:
 
@@ -80,25 +83,28 @@ public:
             "interfaceLoop",
             10000,
             const_cast<RoomInterface*>(this),
-            1,
+            2,
             &system_tasks[0].handle
         );
 
-        xTaskCreate(
+        xTaskCreatePinnedToCore(
             NetworkInterface::network_task,
             "networkTask",
             10000,
             networkInterface,
             1,
-            &system_tasks[1].handle
+            &system_tasks[1].handle,
+            0
         );
-        xTaskCreate(
+        esp_task_wdt_add(system_tasks[1].handle);
+        xTaskCreatePinnedToCore(
             eventLoop,
             "eventLoop",
             20000,
             const_cast<RoomInterface*>(this),
-            1,
-            &system_tasks[2].handle
+            2,
+            &system_tasks[2].handle,
+            1
         );
 
         startDeviceLoops();
@@ -146,9 +152,9 @@ public:
 
     void startDeviceLoops() const;
 
-    void sendUplink() const; // Send the uplink data to the network interface.
+    void sendUplink(); // Send the uplink data to the network interface.
 
-    void uplinkNow() const; // Set the uplink semaphore to send the uplink now instead of waiting for next timer.
+    void uplinkNow(char* target_device); // Set the uplink semaphore to send the uplink now instead of waiting for next timer.
 
     static void interfaceLoop(void *pvParameters);
 

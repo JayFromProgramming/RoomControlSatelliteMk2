@@ -5,6 +5,8 @@
 #include <ESP32Ping.h>
 #include "NetworkInterface.h"
 
+#include <esp_task_wdt.h>
+
 void NetworkInterface::begin() {
     // The network interface runs on Core 0
     this->uplink_queue = xQueueCreate(10, sizeof(uplink_message_t));
@@ -13,27 +15,40 @@ void NetworkInterface::begin() {
     // Set up the downlink server and it's callbacks (which are lambda's that call other functions)
     this->downlink_server.onRequestBody([this](AsyncWebServerRequest *request,
                                                uint8_t *data, size_t len, size_t index, size_t total) {
+        this->on_body_data(request, data, len, index, total);
+    });
+    this->downlink_server.on("/downlink", HTTP_POST, [this](AsyncWebServerRequest *request) {
         // When the endpoint is hit, call the appropriate function
-        if (request->url() == "/downlink") { // Mostly unused right now
-            this->on_downlink(request, data, len, index, total);
-        } else if (request->url() == "/event") { // Primary method for CENTRAL to control devices
-            this->on_event(request, data, len, index, total);
-        }
+        this->on_downlink(request);
+    });
+    this->downlink_server.on("/event", HTTP_POST, [this](AsyncWebServerRequest *request) {
+        // When the endpoint is hit, call the appropriate function
+        this->on_event(request);
     });
     this->downlink_server.on("/uplink", HTTP_GET, [this](AsyncWebServerRequest *request) {
         // When the endpoint is hit, call the appropriate function
-        this->on_uplink(request, nullptr, 0, 0, 0);
+        this->on_uplink(request);
     });
     this->downlink_server.begin();
 }
 
-void NetworkInterface::on_downlink(AsyncWebServerRequest *request, uint8_t *data, size_t len,
-    size_t index, size_t total) const {
+void NetworkInterface::on_downlink(AsyncWebServerRequest *request) const {
     request->send(404, "text/plain", "Not implemented");
 }
 
-void NetworkInterface::on_uplink(AsyncWebServerRequest *request, uint8_t *data, size_t len,
+void NetworkInterface::on_body_data(AsyncWebServerRequest *request, uint8_t *data, size_t len,
     size_t index, size_t total) const {
+    if (request->_tempObject == nullptr) {
+        request->_tempObject = new body_data_t();
+    }
+    // This method might be called multiple times to build up the body data
+    auto *body_data = static_cast<body_data_t *>(request->_tempObject);
+    memcpy(body_data->data + body_data->length, data, len);
+    body_data->length += len;
+
+}
+
+void NetworkInterface::on_uplink(AsyncWebServerRequest *request) const {
     analogWrite(ACTIVITY_LED, 128);
     xSemaphoreTake(this->uplinkData->mutex, portMAX_DELAY);
     request->send(200, "application/json", this->uplinkData->payload);
@@ -41,24 +56,24 @@ void NetworkInterface::on_uplink(AsyncWebServerRequest *request, uint8_t *data, 
     xSemaphoreGive(this->uplinkData->mutex);
 }
 
-void NetworkInterface::on_event(AsyncWebServerRequest *request, uint8_t *data, size_t len,
-size_t index, size_t total) const {
-    // If this message is a chunked message then return an error, we don't support that
-    // if (index != 0 || index != total) {
-    //     request->send(400, "text/plain", "Chunked messages not supported");
-    //     return;
-    // }
+void NetworkInterface::on_event(AsyncWebServerRequest *request) const {
     analogWrite(ACTIVITY_LED, 64);
-    // Serial.println("Received event");
+    // Read the body data from the request
+    auto *body_data = static_cast<body_data_t *>(request->_tempObject);
+    if (body_data == nullptr) {
+        request->send(400, "text/plain", "No body data");
+        analogWrite(ACTIVITY_LED, 0);
+        return;
+    }
     // Copy the data into a downlink message and send it to the downlink queue
     downlink_message_t message;
-    if (len > 512) {
+    if (body_data->length > 512) {
         request->send(400, "text/plain", "Payload too large: Max 512 bytes");
         analogWrite(ACTIVITY_LED, 0);
         return;
     }
-    memcpy(message.data, data, len);
-    message.length = len;
+    memcpy(message.data, body_data->data, body_data->length);
+    message.length = body_data->length;
     message.type = downlink_message_t::EVENT;
     const auto result = xQueueSend(downlink_queue, &message, portMAX_DELAY);
     if (result != pdTRUE) {
@@ -93,6 +108,7 @@ size_t index, size_t total) const {
         //     default:
         //         break;
         // }
+        esp_task_wdt_reset();
         vTaskDelay(100);
     }
 }
@@ -118,6 +134,7 @@ void NetworkInterface::send_messages() {
             uplink_client.addHeader("Content-Type", "application/json");
             uplink_client.setUserAgent("ESP32");
             uplink_client.setTimeout(5000);
+            const uint32_t setup_time = millis() - start_time;
             // uplink_client.addHeader("Authorization", CENTRAL_AUTH);
             // For debug print the message
             const int http_code = uplink_client.POST(
@@ -129,7 +146,12 @@ void NetworkInterface::send_messages() {
                 failed_connection_attempts++;
             }
             uplink_client.end();
-            Serial.printf("Message sent in %d ms\n", millis() - start_time);
+            Serial.printf("%s sent [%d bytes] in %dms [%.02f bytes/s]\n",
+                message.endpoint == EVENT ? "Event" : "Uplink",
+                message.length,
+                millis() - start_time,
+                message.length / ((millis() - start_time) / 1000.0));
+            last_transmission = millis();
             analogWrite(ACTIVITY_LED, 0);
             taskYIELD(); // Yield to other tasks
         } else break;

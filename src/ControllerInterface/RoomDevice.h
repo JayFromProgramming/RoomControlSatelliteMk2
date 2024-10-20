@@ -71,6 +71,14 @@ public:
         return nullptr;
     }
 
+    virtual char* getObjectName() {
+        return nullptr;
+    }
+
+    virtual char* getObjectType() {
+        return nullptr;
+    }
+
     RoomDevice();
 
     /**
