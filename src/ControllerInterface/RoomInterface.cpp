@@ -36,6 +36,9 @@ void RoomInterface::sendUplink() {
     }
     Serial.printf("Sending Uplink: %s : %d\n", uplink_target_device == nullptr ? "All" : uplink_target_device,
         root["objects"].size());
+    if (uplink_target_device == nullptr) {
+        last_full_send = millis();
+    }
     uplink_target_device = nullptr;
     // Serialize the json data.
     char buffer[1024] = {0};
@@ -50,7 +53,11 @@ void RoomInterface::sendUplink() {
 }
 
 void RoomInterface::uplinkNow(char* target_device) {
-    xSemaphoreTake(exclusive_uplink_mutex, portMAX_DELAY);
+    auto result = xSemaphoreTake(exclusive_uplink_mutex, 50);
+    if (result != pdTRUE) {
+        Serial.println("Failed to take exclusive uplink mutex");
+        return;
+    }
     if (uplink_target_device != nullptr) { // The uplink task is still processing a previous exclusive uplink
         xSemaphoreGive(exclusive_uplink_mutex); // Release the mutex and abort the uplink
         Serial.println("Failed to send exclusive uplink, previous uplink still processing");
@@ -58,6 +65,7 @@ void RoomInterface::uplinkNow(char* target_device) {
     }
     uplink_target_device = target_device;
     xSemaphoreGive(uplinkSemaphore);
+    xSemaphoreGive(exclusive_uplink_mutex);
 }
 
 
@@ -70,6 +78,9 @@ void RoomInterface::uplinkNow(char* target_device) {
         roomInterface->sendUplink();
         // xTaskDelayUntil(&roomInterface->lastWakeTime, roomInterface->loopInterval);
         // This will either block until the semaphore is given or timeout after the loopInterval and send the uplink.
+        if (millis() - roomInterface->last_full_send > 30000) {
+            roomInterface->sendUplink();
+        }
         xSemaphoreTake(roomInterface->uplinkSemaphore, roomInterface->loopInterval);
         // vTaskDelay(1000 / portTICK_PERIOD_MS); // Add a 1 second constant delay
     }
@@ -187,7 +198,7 @@ ParsedEvent_t* RoomInterface::eventParse(const char* data) const {
 }
 
 void RoomInterface::eventExecute(ParsedEvent_t* event) const {
-    // Serial.printf("Executing Event: %s\n", event->eventName);
+    Serial.printf("Executing Event: %s\n", event->eventName);
     for (auto current = devices; current != nullptr; current = current->next) {
         // Serial.printf("Checking Device: %s : %s\n", current->device->getObjectName(), event->objectName);
         if (strcmp(current->device->getObjectName(), event->objectName) == 0) {

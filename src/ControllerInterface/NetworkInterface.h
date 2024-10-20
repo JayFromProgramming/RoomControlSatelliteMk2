@@ -45,6 +45,7 @@ public:
         target_endpoint endpoint;
         char data[1024];
         size_t length;
+        uint32_t timestamp;
     } uplink_message_t;
 
     struct UplinkDataStruct {
@@ -62,6 +63,7 @@ public:
         } type;
         char data[512];
         size_t length;
+        uint32_t timestamp;
     } downlink_message_t;
 
     QueueHandle_t downlink_queue;
@@ -84,7 +86,7 @@ private:
 
     void on_body_data(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) const;
 
-    void on_event(AsyncWebServerRequest *request) const;
+    void on_event(AsyncWebServerRequest *request, body_data_t* body_data) const;
 
     void on_uplink(AsyncWebServerRequest *request) const;
 

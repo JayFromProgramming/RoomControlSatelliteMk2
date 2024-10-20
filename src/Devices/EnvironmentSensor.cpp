@@ -26,9 +26,11 @@ void EnvironmentSensor::RTOSLoop(void* pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
     for (;;) {
         if (self->aht20.available() && self->aht20.isConnected()) {
+            const bool first_read = self->temperature == 0 && self->humidity == 0;
             self->temperature = celsiusToFahrenheit(self->aht20.getTemperature());
             self->humidity = self->aht20.getHumidity();
             self->has_data = true;
+            if (first_read) self->uplinkNow();
             // Send the event to the RoomInterface
             const auto event = EnvironmentSensor::getScratchSpace();
             if (event == nullptr) {

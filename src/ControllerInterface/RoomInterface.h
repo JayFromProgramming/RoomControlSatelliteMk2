@@ -52,6 +52,7 @@ private:
     };
 
     char* uplink_buffer = new char[512];
+    uint32_t last_full_send;
     NetworkInterface* networkInterface = new NetworkInterface();
     NetworkInterface::UplinkDataStruct* uplinkData = new NetworkInterface::UplinkDataStruct();
     DeviceList* devices = nullptr;

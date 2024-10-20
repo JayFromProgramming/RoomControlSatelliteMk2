@@ -17,14 +17,14 @@ void NetworkInterface::begin() {
                                                uint8_t *data, size_t len, size_t index, size_t total) {
         this->on_body_data(request, data, len, index, total);
     });
-    this->downlink_server.on("/downlink", HTTP_POST, [this](AsyncWebServerRequest *request) {
-        // When the endpoint is hit, call the appropriate function
-        this->on_downlink(request);
-    });
-    this->downlink_server.on("/event", HTTP_POST, [this](AsyncWebServerRequest *request) {
-        // When the endpoint is hit, call the appropriate function
-        this->on_event(request);
-    });
+    // this->downlink_server.on("/downlink", HTTP_POST, [this](AsyncWebServerRequest *request) {
+    //     // When the endpoint is hit, call the appropriate function
+    //     this->on_downlink(request);
+    // });
+    // this->downlink_server.on("/event", HTTP_POST, [this](AsyncWebServerRequest *request) {
+    //     // When the endpoint is hit, call the appropriate function
+    //     this->on_event(request);
+    // });
     this->downlink_server.on("/uplink", HTTP_GET, [this](AsyncWebServerRequest *request) {
         // When the endpoint is hit, call the appropriate function
         this->on_uplink(request);
@@ -40,12 +40,20 @@ void NetworkInterface::on_body_data(AsyncWebServerRequest *request, uint8_t *dat
     size_t index, size_t total) const {
     if (request->_tempObject == nullptr) {
         request->_tempObject = new body_data_t();
+        analogWrite(ACTIVITY_LED, 64);
     }
     // This method might be called multiple times to build up the body data
     auto *body_data = static_cast<body_data_t *>(request->_tempObject);
     memcpy(body_data->data + body_data->length, data, len);
     body_data->length += len;
-
+    if (index + len == total) {
+        // If this is the last chunk of data, call the appropriate function
+        if (strcmp(request->url().c_str(), "/event") == 0) {
+            this->on_event(request, body_data);
+        } else {
+            request->send(404, "text/plain", "Not implemented");
+        }
+    }
 }
 
 void NetworkInterface::on_uplink(AsyncWebServerRequest *request) const {
@@ -56,10 +64,8 @@ void NetworkInterface::on_uplink(AsyncWebServerRequest *request) const {
     xSemaphoreGive(this->uplinkData->mutex);
 }
 
-void NetworkInterface::on_event(AsyncWebServerRequest *request) const {
-    analogWrite(ACTIVITY_LED, 64);
+void NetworkInterface::on_event(AsyncWebServerRequest *request, body_data_t* body_data) const {
     // Read the body data from the request
-    auto *body_data = static_cast<body_data_t *>(request->_tempObject);
     if (body_data == nullptr) {
         request->send(400, "text/plain", "No body data");
         analogWrite(ACTIVITY_LED, 0);
@@ -82,6 +88,7 @@ void NetworkInterface::on_event(AsyncWebServerRequest *request) const {
         return;
     }
     request->send(200, "text/plain", "In Queue");
+    // delete body_data;
     analogWrite(ACTIVITY_LED, 0);
 }
 
@@ -119,6 +126,7 @@ void NetworkInterface::queue_message(
     memcpy(message.data, data, length);
     message.length = length;
     message.endpoint = endpoint;
+    message.timestamp = millis();
     xQueueSend(uplink_queue, &message, portMAX_DELAY);
 }
 
@@ -127,6 +135,7 @@ void NetworkInterface::send_messages() {
     while (true) {
         if (xQueueReceive(uplink_queue, &message, 0) == pdTRUE) {
             analogWrite(ACTIVITY_LED, 32);
+            const uint32_t queue_time = millis() - message.timestamp;
             // Init a timer to keep track of how long it takes to send a message
             const uint32_t start_time = millis();
             uplink_client.begin(CENTRAL_HOSTNAME, CENTRAL_PORT,
@@ -146,13 +155,15 @@ void NetworkInterface::send_messages() {
                 failed_connection_attempts++;
             }
             uplink_client.end();
-            Serial.printf("%s sent [%d bytes] in %dms [%.02f bytes/s]\n",
-                message.endpoint == EVENT ? "Event" : "Uplink",
+            Serial.printf("%s sent [%d bytes] in %dms [%.02f bytes/s] [Queue Time: %dms]\n",
+                message.endpoint == EVENT ? "Event " : "Uplink",
                 message.length,
                 millis() - start_time,
-                message.length / ((millis() - start_time) / 1000.0));
+                message.length / ((millis() - start_time) / 1000.0),
+                queue_time);
             last_transmission = millis();
             analogWrite(ACTIVITY_LED, 0);
+            esp_task_wdt_reset();
             taskYIELD(); // Yield to other tasks
         } else break;
     }

@@ -82,7 +82,7 @@ void setup() {
     Serial.println("Starting up all Tasks...");
     MainRoomInterface.begin();
     Serial.println("Task startup complete.");
-    esp_task_wdt_init(1, true);
+    esp_task_wdt_init(5, true);
 }
 
 void loop() {
