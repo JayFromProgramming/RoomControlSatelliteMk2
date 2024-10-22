@@ -9,11 +9,11 @@ Radiator::Radiator() {
     pinMode(RADIATOR_PIN, OUTPUT);
     digitalWrite(RADIATOR_PIN, HIGH);
     addEventCallback("set_on", [](RoomDevice* self, const ParsedEvent_t* data) {
-        const auto radiator = static_cast<Radiator*>(self);
+        const auto radiator = dynamic_cast<Radiator*>(self);
         radiator->setOn(data->args[0].value.boolVal);
     });
     addEventCallback("heartbeat", [](RoomDevice* self, const ParsedEvent_t* data) {
-        const auto radiator = static_cast<Radiator*>(self);
+        const auto radiator = dynamic_cast<Radiator*>(self);
         radiator->lastHeartbeat = xTaskGetTickCount();
     });
 }
@@ -45,14 +45,6 @@ void Radiator::setOn(const boolean on) {
     Serial.printf("Radiator has been set %s\n", on ? "on" : "off");
     digitalWrite(RADIATOR_PIN, on ? LOW : HIGH);
     uplinkNow(); // Force a transmission of the device data.
-    // Send an event to the controller to update the state of the device.
-    // const auto event = getScratchSpace();
-    // event->objectName = writeStringToScratchSpace(object_type, event);
-    // event->eventName = writeStringToScratchSpace("on_state_update", event);
-    // event->numArgs = 1;
-    // event->args[0].type = ParsedArg::BOOL;
-    // event->args[0].value.boolVal = on;
-    // sendEvent(event);
 }
 
 JsonVariant Radiator::getDeviceData(){

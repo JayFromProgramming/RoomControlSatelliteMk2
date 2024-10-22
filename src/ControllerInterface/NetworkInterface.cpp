@@ -130,6 +130,9 @@ void NetworkInterface::queue_message(
     xQueueSend(uplink_queue, &message, portMAX_DELAY);
 }
 
+/**
+ *
+ */
 void NetworkInterface::send_messages() {
     uplink_message_t message;
     while (true) {
@@ -142,7 +145,7 @@ void NetworkInterface::send_messages() {
                 message.endpoint == EVENT ? "/event" : "/uplink");
             uplink_client.addHeader("Content-Type", "application/json");
             uplink_client.setUserAgent("ESP32");
-            uplink_client.setTimeout(5000);
+            uplink_client.setTimeout(2500);
             const uint32_t setup_time = millis() - start_time;
             // uplink_client.addHeader("Authorization", CENTRAL_AUTH);
             // For debug print the message
@@ -162,7 +165,7 @@ void NetworkInterface::send_messages() {
                 message.length / ((millis() - start_time) / 1000.0),
                 queue_time);
             last_transmission = millis();
-            analogWrite(ACTIVITY_LED, 0);
+            analogWrite(ACTIVITY_LED, 0); // Turn off the activity LED to indicate no activity
             esp_task_wdt_reset();
             taskYIELD(); // Yield to other tasks
         } else break;
@@ -204,23 +207,6 @@ NetworkInterface::network_state_t NetworkInterface::link_status() {
     if (WiFiClass::status() != WL_CONNECTED) {
         return WIRELESS_DOWN;
     }
-    // if (failed_connection_attempts > 5) {
-    //
-    // }
-    // switch (last_state) {
-    //     case WIRELESS_DOWN:
-    //         if (ping_dns()) last_state = NETWORK_DOWN;
-    //         break;
-    //     case NETWORK_DOWN:
-    //         if (ping_gateway()) last_state = CENTRAL_DOWN;
-    //         break;
-    //     case CENTRAL_DOWN:
-    //         if (ping_central()) last_state = LINK_OK;
-    //         break;
-    //     case LINK_OK:
-    //         if (!ping_central()) last_state = CENTRAL_DOWN;
-    //         break;
-    // }
     return LINK_OK;
 }
 

@@ -18,40 +18,45 @@ void RoomInterface::startDeviceLoops() const {
     }
 }
 
+/**
+ * Packages the device data into a json object and sends it to the CENTRAL server.
+ * @note If the uplink_target_device is not null, only the device with the matching name will be sent.
+ */
 void RoomInterface::sendUplink() {
     auto payload = JsonDocument();
     const auto root = payload.to<JsonObject>();
     root["name"] = "RoomDevice";
     root["current_ip"] = WiFi.localIP().toString();
     root["objects"] = JsonObject();
-    root["auth"] = "AAAAAA";
-    // Add all the device data to the payload.
+    root["auth"] = "AAAAAA"; // Not needed anymore but I've left it in just in case.
     for (auto current = devices; current != nullptr; current = current->next) {
-        if (uplink_target_device != nullptr &&
+        if (uplink_target_device != nullptr && // If exclusive uplink is requested, only send the target device
             strcmp(current->device->getObjectName(), uplink_target_device) != 0) {
             continue;
-        }
+        } // Otherwise, add all devices to the uplink.
         const auto deviceData = current->device->getDeviceData();
         root["objects"][current->device->getObjectName()] = deviceData;
     }
     Serial.printf("Sending Uplink: %s : %d\n", uplink_target_device == nullptr ? "All" : uplink_target_device,
         root["objects"].size());
-    if (uplink_target_device == nullptr) {
-        last_full_send = millis();
-    }
-    uplink_target_device = nullptr;
+    if (uplink_target_device == nullptr) last_full_send = millis(); // Update the last full send time
+    uplink_target_device = nullptr; // Reset the exclusive uplink target device
     // Serialize the json data.
     char buffer[1024] = {0};
-    xSemaphoreTake(uplinkData->mutex, portMAX_DELAY);
-    memset(uplinkData->payload, 0, 1024);
+    xSemaphoreTake(uplinkData->mutex, portMAX_DELAY); // Lock the uplink data mutex to write the payload
+    memset(uplinkData->payload, 0, 1024); // Clear the uplink buffer
     const auto serialized = serializeJson(payload, &buffer, sizeof(buffer));
-    memcpy(uplinkData->payload, buffer, serialized);
+    memcpy(uplinkData->payload, buffer, serialized); // Copy the serialized data to the uplink buffer
     uplinkData->length = serialized;
-    xSemaphoreGive(uplinkData->mutex);
+    xSemaphoreGive(uplinkData->mutex); // Unlock the uplink data mutex
     // Queue the message to be sent to CENTRAL
     networkInterface->queue_message(NetworkInterface::UPLINK, buffer, serialized);
 }
 
+/**
+ * Called when a device changes it's data and wants to send an uplink to the CENTRAL server immediately.
+ * @param target_device The name of the device to send the uplink to. If null, nothing happens and this was pointless.
+ */
 void RoomInterface::uplinkNow(char* target_device) {
     auto result = xSemaphoreTake(exclusive_uplink_mutex, 50);
     if (result != pdTRUE) {
@@ -69,6 +74,15 @@ void RoomInterface::uplinkNow(char* target_device) {
 }
 
 
+/**
+ * This method is the main task entry point for the RoomInterface class.
+ * This runs on Core 1 and is responsible for sending the uplink data to the CENTRAL server either every loopInterval
+ * or when the uplinkSemaphore is given.
+ * Additionally, this task is responsible for starting the device tasks.
+ * @core 1
+ * @param pvParameters A pointer to the RoomInterface instance.
+ * @noreturn
+ */
 [[noreturn]] void RoomInterface::interfaceLoop(void *pvParameters) {
     Serial.println("Starting Room Interface Loop");
     auto* roomInterface = static_cast<RoomInterface*>(pvParameters);
@@ -76,16 +90,18 @@ void RoomInterface::uplinkNow(char* target_device) {
     roomInterface->startDeviceLoops();
     while (true) {
         roomInterface->sendUplink();
-        // xTaskDelayUntil(&roomInterface->lastWakeTime, roomInterface->loopInterval);
         // This will either block until the semaphore is given or timeout after the loopInterval and send the uplink.
-        if (millis() - roomInterface->last_full_send > 30000) {
-            roomInterface->sendUplink();
-        }
+        if (millis() - roomInterface->last_full_send > 30000) roomInterface->sendUplink();
         xSemaphoreTake(roomInterface->uplinkSemaphore, roomInterface->loopInterval);
-        // vTaskDelay(1000 / portTICK_PERIOD_MS); // Add a 1 second constant delay
     }
 }
 
+/**
+ * This method is the main task entry point for the Event Parsing and Execution task.
+ * This task is responsible for parsing the incoming downlink messages and executing the events on subscribed devices.
+ * @core 0/1
+ * @param pvParameters The RoomInterface instance.
+ */
 [[noreturn]] void RoomInterface::eventLoop(void *pvParameters) {
     Serial.println("Starting Event Loop");
     const auto* roomInterface = static_cast<RoomInterface*>(pvParameters);
@@ -95,9 +111,7 @@ void RoomInterface::uplinkNow(char* target_device) {
         if (xQueueReceive(roomInterface->networkInterface->downlink_queue, &message, portMAX_DELAY) == pdTRUE) {
             // Parse the event data and execute the event.
             auto* parsed = roomInterface->eventParse(message.data);
-            if (parsed != nullptr) {
-                roomInterface->eventExecute(parsed);
-            }
+            if (parsed != nullptr) roomInterface->eventExecute(parsed);
         }
     }
 }

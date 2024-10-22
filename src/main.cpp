@@ -63,16 +63,17 @@ void setup() {
     // _xtos_set_exception_handler(EXCCAUSE, reinterpret_cast<_xtos_handler>(exceptionHandler));
     Serial.begin(9600);
     Serial.println("Starting WiFi...");
-    WiFi.mode(WIFI_MODE_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    WiFi.setAutoReconnect(true);
-    WiFi.setHostname("RoomDevice");
+    WiFi.mode(WIFI_MODE_STA);  // Setup wifi to connect to an access point
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD); // Pass the SSID and Password to the WiFi.begin function
+    WiFi.setAutoReconnect(true); // Enable auto reconnect
+    WiFi.setHostname("RoomDevice"); // Set the hostname of the device (doesn't seem to work)
     Serial.println("WiFi started.");
     if (WiFi.waitForConnectResult() != WL_CONNECTED) {
         Serial.println("WiFi failed to connect.");
         esp_restart();
         return;
     }
+    // Set the time using the NTP protocol
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
     radiator = new Radiator();
     motionDetector = new MotionDetector();
@@ -82,7 +83,7 @@ void setup() {
     Serial.println("Starting up all Tasks...");
     MainRoomInterface.begin();
     Serial.println("Task startup complete.");
-    esp_task_wdt_init(5, true);
+    esp_task_wdt_init(10, true);
 }
 
 void loop() {
