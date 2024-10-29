@@ -9,11 +9,11 @@ Radiator::Radiator() {
     pinMode(RADIATOR_PIN, OUTPUT);
     digitalWrite(RADIATOR_PIN, HIGH);
     addEventCallback("set_on", [](RoomDevice* self, const ParsedEvent_t* data) {
-        const auto radiator = dynamic_cast<Radiator*>(self);
+        const auto radiator = static_cast<Radiator*>(self);
         radiator->setOn(data->args[0].value.boolVal);
     });
     addEventCallback("heartbeat", [](RoomDevice* self, const ParsedEvent_t* data) {
-        const auto radiator = dynamic_cast<Radiator*>(self);
+        const auto radiator = static_cast<Radiator*>(self);
         radiator->lastHeartbeat = xTaskGetTickCount();
     });
 }

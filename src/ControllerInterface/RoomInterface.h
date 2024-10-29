@@ -51,7 +51,7 @@ private:
         const char* name;
     };
 
-    char* uplink_buffer = new char[512];
+    char* uplink_buffer = new char[1024];
     uint32_t last_full_send;
     NetworkInterface* networkInterface = new NetworkInterface();
     NetworkInterface::UplinkDataStruct* uplinkData = new NetworkInterface::UplinkDataStruct();

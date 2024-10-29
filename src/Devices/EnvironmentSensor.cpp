@@ -19,9 +19,7 @@ float_t EnvironmentSensor::celsiusToFahrenheit(float_t celsius_value) {
     return (celsius_value * (9.f / 5.f)) + 32;
 }
 
-[[noreturn]]
-
-void EnvironmentSensor::RTOSLoop(void* pvParameters) {
+[[noreturn]] void EnvironmentSensor::RTOSLoop(void* pvParameters) {
     auto* self = static_cast<EnvironmentSensor *>(pvParameters);
     TickType_t xLastWakeTime = xTaskGetTickCount();
     for (;;) {
