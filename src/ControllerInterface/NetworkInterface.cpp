@@ -97,24 +97,14 @@ void NetworkInterface::on_event(AsyncWebServerRequest *request, body_data_t* bod
     auto *network_interface = static_cast<NetworkInterface *>(pvParameters);
     while (true) {
         network_interface->last_connection_attempt = millis();
-        if (WiFi.isConnected()) {
+        if (WiFi.status() == WL_CONNECTED) {
             network_interface->send_messages();
+        } else if (WiFi.status() == WL_CONNECT_FAILED) {
+            // Reboot
+            ESP.restart();
         } else {
-            Serial.println("WiFi not connected");
+            WiFi.reconnect();
         }
-        // switch (network_interface->link_status()) {
-        //     case WIRELESS_DOWN:
-        //         // network_interface->check_wifi_health();
-        //         break;
-        //     case NETWORK_DOWN:
-        //     case CENTRAL_DOWN:
-        //         break;
-        //     case LINK_OK:
-        //
-        //         break;
-        //     default:
-        //         break;
-        // }
         esp_task_wdt_reset();
         vTaskDelay(100);
     }
@@ -138,6 +128,10 @@ void NetworkInterface::send_messages() {
     while (true) {
         if (xQueueReceive(uplink_queue, &message, 0) == pdTRUE) {
             analogWrite(ACTIVITY_LED, 32);
+            if (WiFi.status() != WL_CONNECTED) {
+                Serial.println("WiFi is not connected, skipping message");
+                break;
+            }
             const uint32_t queue_time = millis() - message.timestamp;
             // Init a timer to keep track of how long it takes to send a message
             const uint32_t start_time = millis();
