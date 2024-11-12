@@ -6,8 +6,8 @@
 
 
 EnvironmentSensor::EnvironmentSensor() {
-    Wire.begin();
-    aht20.begin();
+    // Wire.begin();
+    am2302.begin();
 }
 
 void EnvironmentSensor::startTask(TaskHandle_t* taskHandle) {
@@ -23,10 +23,10 @@ float_t EnvironmentSensor::celsiusToFahrenheit(float_t celsius_value) {
     auto* self = static_cast<EnvironmentSensor *>(pvParameters);
     TickType_t xLastWakeTime = xTaskGetTickCount();
     for (;;) {
-        if (self->aht20.available() && self->aht20.isConnected()) {
+        if (self->am2302.read() == 0) {
             const bool first_read = self->temperature == 0 && self->humidity == 0;
-            self->temperature = celsiusToFahrenheit(self->aht20.getTemperature());
-            self->humidity = self->aht20.getHumidity();
+            self->temperature = celsiusToFahrenheit(self->am2302.get_Temperature());
+            self->humidity = self->am2302.get_Humidity();
             self->has_data = true;
             if (first_read) self->uplinkNow();
             // Send the event to the RoomInterface
@@ -54,11 +54,11 @@ JsonVariant EnvironmentSensor::getDeviceData() {
     deviceData["data"]["temperature"] = temperature;
     deviceData["data"]["humidity"] = humidity;
 
-    if (aht20.isConnected() && temperature != 0 && humidity != 0) {
+    if (has_data) {
         deviceData["health"]["online"] = true;
         deviceData["health"]["fault"] = false;
         deviceData["health"]["reason"] = "";
-    } else if (!aht20.isConnected()) {
+    } else if (temperature != 0 || humidity != 0) {
         deviceData["health"]["online"] = true;
         deviceData["health"]["fault"] = true;
         deviceData["health"]["reason"] = "Sensor Offline";

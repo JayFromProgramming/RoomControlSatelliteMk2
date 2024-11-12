@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Devices/EnvironmentSensor.h>
-#include <Devices/MotionDetector.h>
-#include <Devices/Radiator.h>
+// #include <Devices/MotionDetector.h>
+// #include <Devices/Radiator.h>
 
 #include "ControllerInterface/RoomInterface.h"
 // #include "Devices/Radiator.h"
@@ -16,8 +16,8 @@ extern RoomInterface MainRoomInterface;
 
 RoomInterface::TaskPile allHandles;
 
-Radiator* radiator;
-MotionDetector* motionDetector;
+// Radiator* radiator;
+// MotionDetector* motionDetector;
 EnvironmentSensor* environmentSensor;
 // BlueStalker* blueStalker;
 
@@ -75,8 +75,8 @@ void setup() {
     }
     // Set the time using the NTP protocol
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
-    radiator = new Radiator();
-    motionDetector = new MotionDetector();
+    // radiator = new Radiator();
+    // motionDetector = new MotionDetector();
     // blueStalker = new BlueStalker();
     environmentSensor = new EnvironmentSensor();
     // delay(1000);

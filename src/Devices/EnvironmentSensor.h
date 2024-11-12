@@ -6,7 +6,7 @@
 #define ENVIRONMENTSENSOR_H
 
 #include <ControllerInterface/RoomDevice.h>
-#include <AHT20.h>
+#include <AM2302-Sensor.h>
 #include <Wire.h>
 
 
@@ -15,13 +15,13 @@ class EnvironmentSensor : public RoomDevice {
 public:
 
     const char* object_type = "EnvironmentSensor";
-    const char* object_name = "LivingRoomSensor";
+    const char* object_name = "RadiatorSensor";
 
     float_t temperature = 0;
     float_t humidity = 0;
     boolean has_data = false;
 
-    AHT20 aht20;
+    AM2302::AM2302_Sensor am2302{19};
 
     EnvironmentSensor();
 

@@ -25,7 +25,7 @@ void RoomInterface::startDeviceLoops() const {
 void RoomInterface::sendUplink() {
     auto payload = JsonDocument();
     const auto root = payload.to<JsonObject>();
-    root["name"] = "RoomDevice";
+    root["name"] = "RoomDevice2";
     root["current_ip"] = WiFi.localIP().toString();
     root["objects"] = JsonObject();
     root["auth"] = "AAAAAA"; // Not needed anymore but I've left it in just in case.
