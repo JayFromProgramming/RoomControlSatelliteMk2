@@ -81,7 +81,7 @@ void NetworkInterface::on_event(AsyncWebServerRequest *request, body_data_t* bod
     memcpy(message.data, body_data->data, body_data->length);
     message.length = body_data->length;
     message.type = downlink_message_t::EVENT;
-    const auto result = xQueueSend(downlink_queue, &message, portMAX_DELAY);
+    const auto result = xQueueSend(downlink_queue, &message, 1000);
     if (result != pdTRUE) {
         request->send(500, "text/plain", "Queue full");
         analogWrite(ACTIVITY_LED, 0);

@@ -104,15 +104,16 @@ void RoomInterface::uplinkNow(char* target_device) {
  */
 [[noreturn]] void RoomInterface::eventLoop(void *pvParameters) {
     Serial.println("Starting Event Loop");
-    const auto* roomInterface = static_cast<RoomInterface*>(pvParameters);
+    auto* roomInterface = static_cast<RoomInterface*>(pvParameters);
     while (true) {
         // Check the downlink queue for new events.
         NetworkInterface::downlink_message_t message;
-        if (xQueueReceive(roomInterface->networkInterface->downlink_queue, &message, portMAX_DELAY) == pdTRUE) {
+        if (xQueueReceive(roomInterface->networkInterface->downlink_queue, &message, 100) == pdTRUE) {
             // Parse the event data and execute the event.
             auto* parsed = roomInterface->eventParse(message.data);
             if (parsed != nullptr) roomInterface->eventExecute(parsed);
         }
+        esp_task_wdt_reset();
     }
 }
 
@@ -120,7 +121,7 @@ void RoomInterface::uplinkNow(char* target_device) {
  * Send an event to the CENTRAL server.
  * @param event A pointer to a parsed event structure from the working space already filled
  */
-void RoomInterface::sendEvent(ParsedEvent_t* event) {
+void RoomInterface::sendEvent(ParsedEvent_t* event) const {
     // return;
     auto document = JsonDocument();
     const auto root = document.to<JsonObject>();
@@ -167,7 +168,7 @@ void RoomInterface::sendEvent(ParsedEvent_t* event) {
  * @param data The json data to parse.
  * @return
  */
-ParsedEvent_t* RoomInterface::eventParse(const char* data) const {
+ParsedEvent_t* RoomInterface::eventParse(const char* data) {
     // Serial.println("Parsing Event");
     auto* working_space = get_free_scratch_space();
     if (working_space == nullptr) {
@@ -176,14 +177,14 @@ ParsedEvent_t* RoomInterface::eventParse(const char* data) const {
     }
     working_space->finished = false;
     // Parse the json data and fill the working space.
-    auto document = JsonDocument();
-    const DeserializationError error = deserializeJson(document, data);
+    event_document.clear();
+    const DeserializationError error = deserializeJson(event_document, data);
     if (error) {
         Serial.print(F("deserializeJson() failed: "));
         Serial.println(error.c_str());
         return nullptr;
     }
-    const auto root = document.as<JsonObject>();
+    const auto root = event_document.as<JsonObject>();
     char* object_ptr = write_string_to_scratch_space(root["object"], working_space);
     char* event_ptr = write_string_to_scratch_space(root["event"], working_space);
     working_space->objectName = object_ptr;

@@ -4,10 +4,21 @@
 
 #include "Radiator.h"
 
+__NOINIT_ATTR uint32_t radiator_state_preserver;
+
 Radiator::Radiator() {
     Serial.println("Initializing Radiator");
     pinMode(RADIATOR_PIN, OUTPUT);
-    digitalWrite(RADIATOR_PIN, HIGH);
+    if (radiator_state_preserver != PRESERVER_OFF && radiator_state_preserver != PRESERVER_ON) {
+        Serial.println("Radiator state has been reset");
+        radiator_state_preserver = PRESERVER_OFF; // This magic number indicates off
+    }
+    if (radiator_state_preserver == PRESERVER_OFF) {
+        state = COOLDOWN;
+    } else if (radiator_state_preserver == PRESERVER_ON) {
+        state = WARMUP;
+    }
+    digitalWrite(RADIATOR_PIN, state == WARMUP ? LOW : HIGH);
     addEventCallback("set_on", [](RoomDevice* self, const ParsedEvent_t* data) {
         const auto radiator = static_cast<Radiator*>(self);
         radiator->setOn(data->args[0].value.boolVal);
@@ -43,12 +54,13 @@ void Radiator::startTask(TaskHandle_t* taskHandle) {
         }
         switch(self->state) {
             case CLOSING: // Radiator is closing the valve
-                if (self->radiator_temp < self->temp_at_shutdown - 1.5)
+                if (self->radiator_temp < self->temp_at_shutdown - 0.5)
                     self->state = COOLDOWN;
                 if (self->radiator_temp <= RADIATOR_COOLDOWN_TEMP)
                     self->state = OFF;
                 if (xTaskGetTickCount() - self->cooldown_start > RADIATOR_COOLDOWN_TIME)
                     self->state = SHUTDOWN_FAULT;
+            break;
             case COOLDOWN:
                 if (self->radiator_temp <= RADIATOR_COOLDOWN_TEMP)
                     self->state = OFF;
@@ -59,12 +71,12 @@ void Radiator::startTask(TaskHandle_t* taskHandle) {
                     self->state = SHUTDOWN_FAULT;
             break;
             case OFF: // Radiator is off and cold (and should stay cold)
-                if (self->radiator_temp > RADIATOR_COOLDOWN_TEMP && !self->on)
+                if (self->radiator_temp > RADIATOR_COOLDOWN_TEMP + 5 && !self->on)
                     self->state = SHUTDOWN_FAULT;
                 if (self->on) self->state = WARMUP; // Edge case check
                 break;
             case OPENING:
-                if (self->radiator_temp > self->temp_at_startup + 1.5)
+                if (self->radiator_temp > self->temp_at_startup + 0.5)
                     self->state = WARMUP;
                 if (self->radiator_temp >= RADIATOR_OPERATING_TEMP)
                     self->state = ON;
@@ -87,16 +99,17 @@ void Radiator::startTask(TaskHandle_t* taskHandle) {
                     self->state = STARTUP_FAULT;
                 if (!self->on) self->state = COOLDOWN; // Edge case check
                 break;
-
             case STARTUP_FAULT:
                 if (self->radiator_temp > RADIATOR_OPERATING_TEMP)
                     self->state = ON;
                 if (!self->on) self->state = OFF;
+                digitalWrite(RADIATOR_PIN, LOW); // Reassert the on state
                 break;
             case SHUTDOWN_FAULT:
                 if (self->radiator_temp < RADIATOR_COOLDOWN_TEMP)
                     self->state = OFF;
                 if (self->on) self->state = ON;
+                digitalWrite(RADIATOR_PIN, HIGH); // Reassert the on state
                 break;
 
         }
@@ -114,6 +127,7 @@ void Radiator::setOn(const boolean on) {
                 state = OPENING;
                 this->temp_at_startup = radiator_temp;
                 warmup_start = xTaskGetTickCount();
+                radiator_state_preserver = 0x4321;
             }
         break;
         case ON:
@@ -123,6 +137,7 @@ void Radiator::setOn(const boolean on) {
                 state = CLOSING;
                 this->temp_at_shutdown = radiator_temp;
                 cooldown_start = xTaskGetTickCount();
+                radiator_state_preserver = 0x1234;
             }
         break;
         case STARTUP_FAULT:
@@ -151,7 +166,7 @@ void Radiator::updateRadiatorTemp(const float temp) {
     if (40 < temp && temp < 120) radiator_temp = temp;
 }
 
-const char* Radiator::getStateString() {
+const char* Radiator::getStateString() const {
     switch(state) {
         case OFF:                   return "IDLE";
         case WARMUP:                return "WARMUP";

@@ -37,6 +37,8 @@ private:
 
     ParsedEvent_t argumentScratchSpace[10] = {};
 
+    JsonDocument event_document = JsonDocument();
+
     mutable TickType_t lastWakeTime;
     const TickType_t loopInterval = 30000 / portTICK_PERIOD_MS;  // Wake to send the status update every 30 seconds
 
@@ -161,9 +163,9 @@ public:
 
     static void eventLoop(void *pvParameters);
 
-    void sendEvent(ParsedEvent_t* event) ;
+    void sendEvent(ParsedEvent_t* event) const;
 
-    ParsedEvent_t* eventParse(const char* data) const;
+    ParsedEvent_t* eventParse(const char* data);
 
     void eventExecute(ParsedEvent_t* event) const;
 
