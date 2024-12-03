@@ -123,7 +123,7 @@ void RoomInterface::uplinkNow(char* target_device) {
  */
 void RoomInterface::sendEvent(ParsedEvent_t* event) const {
     // return;
-    auto document = JsonDocument();
+    auto document = event->document;
     const auto root = document.to<JsonObject>();
     root["name"] = "RoomDevice";
     root["object"] = event->objectName;
@@ -153,8 +153,7 @@ void RoomInterface::sendEvent(ParsedEvent_t* event) const {
     const auto serialized = serializeJson(document, &buffer, sizeof(buffer));
     // Queue the message to be sent to CENTRAL
     networkInterface->queue_message(NetworkInterface::EVENT, buffer, serialized);
-    memset(event, 0, sizeof(ParsedEvent_t));
-    event->finished = true;
+    cleanup_scratch_space(event);
 }
 
 /**
@@ -206,6 +205,9 @@ ParsedEvent_t* RoomInterface::eventParse(const char* data) {
             working_space->args[working_space->numArgs].value.stringVal =
                 write_string_to_scratch_space(arg.as<const char*>(), working_space);
             working_space->args[working_space->numArgs].type = ParsedArg::STRING;
+        } else {
+            Serial.println("Unknown arg type in event, aborting");
+            return nullptr;
         }
         working_space->numArgs++;
     }
@@ -222,7 +224,7 @@ void RoomInterface::eventExecute(ParsedEvent_t* event) const {
         }
     }
     // Clear the working space for the next event.
-    memset(event, 0, sizeof(ParsedEvent_t));
+    cleanup_scratch_space(event);
     event->finished = true;
 }
 

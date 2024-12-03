@@ -38,6 +38,7 @@ private:
     ParsedEvent_t argumentScratchSpace[10] = {};
 
     JsonDocument event_document = JsonDocument();
+    JsonDocument uplink_document = JsonDocument();
 
     mutable TickType_t lastWakeTime;
     const TickType_t loopInterval = 30000 / portTICK_PERIOD_MS;  // Wake to send the status update every 30 seconds
@@ -89,7 +90,7 @@ public:
             2,
             &system_tasks[0].handle
         );
-
+        // esp_task_wdt_add(system_tasks[0].handle);
         xTaskCreatePinnedToCore(
             NetworkInterface::network_task,
             "networkTask",
@@ -109,7 +110,7 @@ public:
             &system_tasks[2].handle,
             1
         );
-
+        esp_task_wdt_add(system_tasks[2].handle);
         startDeviceLoops();
         Serial.println("Room Interface Initialized");
     }
@@ -127,6 +128,14 @@ public:
         strcpy(buffer, string);
         scratchSpace->stringIndex += strlen(string) + 1;
         return buffer;
+    }
+
+    static void cleanup_scratch_space(ParsedEvent_t* scratchSpace) {
+        scratchSpace->numArgs = 0;
+        scratchSpace->numKwargs = 0;
+        scratchSpace->stringIndex = 0;
+        scratchSpace->document.clear();
+        scratchSpace->finished = true;
     }
 
     ParsedEvent_t* get_free_scratch_space() const {

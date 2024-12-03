@@ -5,6 +5,7 @@
 #include "MotionDetector.h"
 
 SemaphoreHandle_t motionEventMutex;
+__NOINIT_ATTR time_t lastMotionTimePreserver;
 
 MotionDetector::MotionDetector() {
     Serial.println("Initializing Motion Detector");
@@ -12,6 +13,7 @@ MotionDetector::MotionDetector() {
     motionEventMutex = xSemaphoreCreateBinary();
     attachInterrupt(digitalPinToInterrupt(MOTION_DETECTOR_PIN), MotionDetector::pinISR, CHANGE);
     motionDetected = digitalRead(MOTION_DETECTOR_PIN);
+    this->lastMotionTime = lastMotionTimePreserver;
 }
 
 void MotionDetector::pinISR() {
@@ -34,6 +36,7 @@ void MotionDetector::startTask(TaskHandle_t *taskHandle) {
             if (self->motionDetected) {
                 // Set the last motion time to the current time from the RTC
                 time(&self->lastMotionTime);
+                time(&lastMotionTimePreserver);
             }
             self->uplinkNow();
             // Send the event to the RoomInterface

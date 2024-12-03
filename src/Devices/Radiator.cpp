@@ -14,11 +14,10 @@ Radiator::Radiator() {
         radiator_state_preserver = PRESERVER_OFF; // This magic number indicates off
     }
     if (radiator_state_preserver == PRESERVER_OFF) {
-        state = COOLDOWN;
+        this->setOn(false);
     } else if (radiator_state_preserver == PRESERVER_ON) {
-        state = WARMUP;
+        this->setOn(true);
     }
-    digitalWrite(RADIATOR_PIN, state == WARMUP ? LOW : HIGH);
     addEventCallback("set_on", [](RoomDevice* self, const ParsedEvent_t* data) {
         const auto radiator = static_cast<Radiator*>(self);
         radiator->setOn(data->args[0].value.boolVal);
@@ -103,13 +102,11 @@ void Radiator::startTask(TaskHandle_t* taskHandle) {
                 if (self->radiator_temp > RADIATOR_OPERATING_TEMP)
                     self->state = ON;
                 if (!self->on) self->state = OFF;
-                digitalWrite(RADIATOR_PIN, LOW); // Reassert the on state
                 break;
             case SHUTDOWN_FAULT:
                 if (self->radiator_temp < RADIATOR_COOLDOWN_TEMP)
                     self->state = OFF;
                 if (self->on) self->state = ON;
-                digitalWrite(RADIATOR_PIN, HIGH); // Reassert the on state
                 break;
 
         }
@@ -127,7 +124,7 @@ void Radiator::setOn(const boolean on) {
                 state = OPENING;
                 this->temp_at_startup = radiator_temp;
                 warmup_start = xTaskGetTickCount();
-                radiator_state_preserver = 0x4321;
+                radiator_state_preserver = PRESERVER_ON;
             }
         break;
         case ON:
@@ -137,7 +134,7 @@ void Radiator::setOn(const boolean on) {
                 state = CLOSING;
                 this->temp_at_shutdown = radiator_temp;
                 cooldown_start = xTaskGetTickCount();
-                radiator_state_preserver = 0x1234;
+                radiator_state_preserver = PRESERVER_OFF;
             }
         break;
         case STARTUP_FAULT:
@@ -151,7 +148,6 @@ void Radiator::setOn(const boolean on) {
     this->on = on;
     Serial.printf("Radiator has been set %s\n", on ? "on" : "off");
     digitalWrite(RADIATOR_PIN, on ? LOW : HIGH);
-
     uplinkNow(); // Force a transmission of the device data.
 }
 

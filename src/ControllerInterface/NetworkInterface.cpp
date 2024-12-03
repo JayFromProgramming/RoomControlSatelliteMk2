@@ -17,14 +17,6 @@ void NetworkInterface::begin() {
                                                uint8_t *data, size_t len, size_t index, size_t total) {
         this->on_body_data(request, data, len, index, total);
     });
-    // this->downlink_server.on("/downlink", HTTP_POST, [this](AsyncWebServerRequest *request) {
-    //     // When the endpoint is hit, call the appropriate function
-    //     this->on_downlink(request);
-    // });
-    // this->downlink_server.on("/event", HTTP_POST, [this](AsyncWebServerRequest *request) {
-    //     // When the endpoint is hit, call the appropriate function
-    //     this->on_event(request);
-    // });
     this->downlink_server.on("/uplink", HTTP_GET, [this](AsyncWebServerRequest *request) {
         // When the endpoint is hit, call the appropriate function
         this->on_uplink(request);
@@ -52,6 +44,7 @@ void NetworkInterface::on_body_data(AsyncWebServerRequest *request, uint8_t *dat
             this->on_event(request, body_data);
         } else {
             request->send(404, "text/plain", "Not implemented");
+            analogWrite(ACTIVITY_LED, 0);
         }
     }
 }
@@ -117,7 +110,7 @@ void NetworkInterface::queue_message(
     message.length = length;
     message.endpoint = endpoint;
     message.timestamp = millis();
-    xQueueSend(uplink_queue, &message, portMAX_DELAY);
+    xQueueSend(uplink_queue, &message, 10000);
 }
 
 /**
@@ -130,6 +123,7 @@ void NetworkInterface::send_messages() {
             analogWrite(ACTIVITY_LED, 32);
             if (WiFi.status() != WL_CONNECTED) {
                 Serial.println("WiFi is not connected, skipping message");
+                analogWrite(ACTIVITY_LED, 0);
                 break;
             }
             const uint32_t queue_time = millis() - message.timestamp;

@@ -35,6 +35,7 @@ typedef struct {
     char stringBuffer[512]; // .5KB buffer for storing string values and kwarg keys
     uint16_t stringIndex = 0;
     bool finished;
+    JsonDocument document;
 } ParsedEvent_t;
 
 #endif //ROOMINTERFACEDATASTRUCTURES_H
