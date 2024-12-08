@@ -116,12 +116,6 @@ public:
 
     void queue_message(target_endpoint endpoint, const char *data, size_t length) const;
 
-    static boolean ping_dns();
-
-    static boolean ping_gateway();
-
-    static boolean ping_central();
-
     void check_wifi_health();
 };
 

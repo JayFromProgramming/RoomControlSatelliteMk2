@@ -59,9 +59,10 @@ private:
     NetworkInterface* networkInterface = new NetworkInterface();
     NetworkInterface::UplinkDataStruct* uplinkData = new NetworkInterface::UplinkDataStruct();
     DeviceList* devices = nullptr;
-    SystemTasks* system_tasks = new SystemTasks[3];
+    SystemTasks* system_tasks = new SystemTasks[4];
     SemaphoreHandle_t uplinkSemaphore = xSemaphoreCreateBinary();
     SemaphoreHandle_t exclusive_uplink_mutex = xSemaphoreCreateMutex();
+    TickType_t last_event_parse;
     char* uplink_target_device = nullptr;
 
 public:
@@ -111,6 +112,15 @@ public:
             1
         );
         esp_task_wdt_add(system_tasks[2].handle);
+        xTaskCreate(
+            interfaceHealthCheck,
+            "interfaceHealthCheck",
+            10000,
+            const_cast<RoomInterface*>(this),
+            0,
+            &system_tasks[3].handle
+        );
+        esp_task_wdt_add(system_tasks[3].handle);
         startDeviceLoops();
         Serial.println("Room Interface Initialized");
     }
@@ -171,6 +181,8 @@ public:
     static void interfaceLoop(void *pvParameters);
 
     static void eventLoop(void *pvParameters);
+
+    static void interfaceHealthCheck(void* pvParameters);
 
     void sendEvent(ParsedEvent_t* event) const;
 

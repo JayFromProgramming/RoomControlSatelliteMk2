@@ -161,33 +161,6 @@ void NetworkInterface::send_messages() {
 }
 
 /**
- * Check if the DNS server is reachable. Used to validate if the network is up.
- * @return True if the DNS server is reachable, false otherwise.
- */
-boolean NetworkInterface::ping_dns() {
-    const IPAddress dns_ip(1, 1, 1, 1);
-    return Ping.ping(dns_ip);
-}
-
-boolean NetworkInterface::ping_gateway() {
-    const IPAddress gateway = WiFi.gatewayIP();
-    return Ping.ping(gateway);
-}
-
-boolean NetworkInterface::ping_central() {
-    IPAddress central_ip;
-    WiFi.hostByName(CENTRAL_HOSTNAME, central_ip);
-    return Ping.ping(central_ip);
-}
-
-/**
- * Called only when WL_CONNECTED is false to check why it's down.
- */
-void NetworkInterface::check_wifi_health() {
-    // Not implemented
-}
-
-/**
  * 
  * @return 
  */

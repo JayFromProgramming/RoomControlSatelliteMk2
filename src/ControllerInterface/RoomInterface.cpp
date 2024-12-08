@@ -169,6 +169,7 @@ void RoomInterface::sendEvent(ParsedEvent_t* event) const {
  */
 ParsedEvent_t* RoomInterface::eventParse(const char* data) {
     // Serial.println("Parsing Event");
+    this->last_event_parse = xTaskGetTickCount();
     auto* working_space = get_free_scratch_space();
     if (working_space == nullptr) {
         Serial.println("Failed to get scratch space for event");
@@ -226,6 +227,19 @@ void RoomInterface::eventExecute(ParsedEvent_t* event) const {
     // Clear the working space for the next event.
     cleanup_scratch_space(event);
     event->finished = true;
+}
+
+[[noreturn]] void RoomInterface::interfaceHealthCheck(void* pvParameters) {
+    auto* roomInterface = static_cast<RoomInterface*>(pvParameters);
+    while (true) {
+        // Check if the last event parse was more than 2 minutes ago.
+        if (xTaskGetTickCount() - roomInterface->last_event_parse > 120000) {
+            Serial.println("Event Parse Timeout");
+            esp_restart();
+        }
+        esp_task_wdt_reset();
+        vTaskDelay(1000);
+    }
 }
 
 
