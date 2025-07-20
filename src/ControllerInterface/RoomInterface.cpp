@@ -22,7 +22,7 @@ void RoomInterface::startDeviceLoops() const {
  * Packages the device data into a json object and sends it to the CENTRAL server.
  * @note If the uplink_target_device is not null, only the device with the matching name will be sent.
  */
-void RoomInterface::sendUplink() {
+void RoomInterface::sendDownlink() {
     auto payload = JsonDocument();
     const auto root = payload.to<JsonObject>();
     root["name"] = "RoomDevice";
@@ -50,14 +50,14 @@ void RoomInterface::sendUplink() {
     uplinkData->length = serialized;
     xSemaphoreGive(uplinkData->mutex); // Unlock the uplink data mutex
     // Queue the message to be sent to CENTRAL
-    networkInterface->queue_message(NetworkInterface::UPLINK, buffer, serialized);
+    networkInterface->queue_message(NetworkInterface::DOWNLINK, buffer, serialized);
 }
 
 /**
  * Called when a device changes it's data and wants to send an uplink to the CENTRAL server immediately.
  * @param target_device The name of the device to send the uplink to. If null, nothing happens and this was pointless.
  */
-void RoomInterface::uplinkNow(char* target_device) {
+void RoomInterface::downlinkNow(char* target_device) {
     auto result = xSemaphoreTake(exclusive_uplink_mutex, 50);
     if (result != pdTRUE) {
         Serial.println("Failed to take exclusive uplink mutex");
@@ -69,7 +69,7 @@ void RoomInterface::uplinkNow(char* target_device) {
         return;
     }
     uplink_target_device = target_device;
-    xSemaphoreGive(uplinkSemaphore);
+    xSemaphoreGive(downlinkSemaphore);
     xSemaphoreGive(exclusive_uplink_mutex);
 }
 
@@ -89,16 +89,16 @@ void RoomInterface::uplinkNow(char* target_device) {
     // roomInterface->lastWakeTime = xTaskGetTickCount();
     roomInterface->startDeviceLoops();
     while (true) {
-        roomInterface->sendUplink();
+        roomInterface->sendDownlink();
         // This will either block until the semaphore is given or timeout after the loopInterval and send the uplink.
-        if (millis() - roomInterface->last_full_send > 30000) roomInterface->sendUplink();
-        xSemaphoreTake(roomInterface->uplinkSemaphore, roomInterface->loopInterval);
+        if (millis() - roomInterface->last_full_send > 30000) roomInterface->sendDownlink();
+        xSemaphoreTake(roomInterface->downlinkSemaphore, roomInterface->loopInterval);
     }
 }
 
 /**
  * This method is the main task entry point for the Event Parsing and Execution task.
- * This task is responsible for parsing the incoming downlink messages and executing the events on subscribed devices.
+ * This task is responsible for parsing the incoming uplink messages and executing the events on subscribed devices.
  * @core 0/1
  * @param pvParameters The RoomInterface instance.
  */
@@ -106,9 +106,9 @@ void RoomInterface::uplinkNow(char* target_device) {
     Serial.println("Starting Event Loop");
     auto* roomInterface = static_cast<RoomInterface*>(pvParameters);
     while (true) {
-        // Check the downlink queue for new events.
-        NetworkInterface::downlink_message_t message;
-        if (xQueueReceive(roomInterface->networkInterface->downlink_queue, &message, 100) == pdTRUE) {
+        // Check the uplink queue for new events.
+        NetworkInterface::uplink_message_t message;
+        if (xQueueReceive(roomInterface->networkInterface->uplink_queue, &message, 100) == pdTRUE) {
             // Parse the event data and execute the event.
             auto* parsed = roomInterface->eventParse(message.data);
             if (parsed != nullptr) roomInterface->eventExecute(parsed);
@@ -190,9 +190,9 @@ ParsedEvent_t* RoomInterface::eventParse(const char* data) {
     working_space->objectName = object_ptr;
     working_space->eventName = event_ptr;
     // Parse the args array.
-    const auto args = root["args"];
-    for (int i = 0; i < args.size(); i++) {
-        auto arg = args[i];
+    const auto args = root["args"].as<JsonArray>();
+    for (const auto & i : args) {
+        auto arg = i.as<JsonVariant>();
         if (arg.is<bool>()) {
             working_space->args[working_space->numArgs].value.boolVal = arg.as<bool>();
             working_space->args[working_space->numArgs].type = ParsedArg::BOOL;

@@ -7,7 +7,7 @@
 // #include "Devices/Radiator.h"
 // #include <esp_system.h>
 #include <esp_task_wdt.h>
-#include <Devices/BlueStalker.h>
+// #include <Devices/BlueStalker.h>
 // #include <esp32/rom/ets_sys.h>
 
 // #define DEBUG 0
@@ -59,7 +59,6 @@ void current_time(char* buffer) {
 }
 
 void setup() {
-    // _xtos_set_exception_handler(EXCCAUSE, reinterpret_cast<_xtos_handler>(exceptionHandler));
     Serial.begin(9600);
     Serial.println("Starting WiFi...");
     WiFi.mode(WIFI_MODE_STA);  // Setup wifi to connect to an access point
@@ -82,6 +81,7 @@ void setup() {
     MainRoomInterface.begin();
     Serial.println("Task startup complete.");
     esp_task_wdt_init(10, true);
+
 }
 
 void loop() {

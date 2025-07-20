@@ -20,7 +20,7 @@ void RoomDevice::sendEvent(ParsedEvent_t *data) {
 }
 
 void RoomDevice::uplinkNow() {
-    MainRoomInterface.uplinkNow(this->getObjectName());
+    MainRoomInterface.downlinkNow(this->getObjectName());
 }
 
 // const char RoomDevice::object_type[] = "RoomDevice";

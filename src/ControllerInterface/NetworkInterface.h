@@ -6,16 +6,15 @@
 #define NETWORKINTERFACE_H
 
 #include <WiFi.h>
-#include <HTTPClient.h>
 #include <ArduinoJson.h>
+
+#include <esp_websocket_client.h>
 #include "secrets.h"
-#include <ESPAsyncWebServer.h>
+
 
 #define ACTIVITY_LED 2
 
 class NetworkInterface {
-
-    size_t downlink_buffer[500] = {0};
 
 public:
 
@@ -29,7 +28,7 @@ public:
     } network_state_t;
 
     enum target_endpoint {
-        UPLINK,
+        DOWNLINK,
         EVENT
     };
 
@@ -46,7 +45,7 @@ public:
         char data[1024];
         size_t length;
         uint32_t timestamp;
-    } uplink_message_t;
+    } downlink_message_t;
 
     struct UplinkDataStruct {
         char* payload;
@@ -57,16 +56,12 @@ public:
     UplinkDataStruct* uplinkData;
 
     typedef struct {
-        enum type {
-            EVENT,
-            DOWNLINK
-        } type;
         char data[512];
         size_t length;
         uint32_t timestamp;
-    } downlink_message_t;
+    } uplink_message_t;
 
-    QueueHandle_t downlink_queue;
+    QueueHandle_t uplink_queue;
 
 private:
 
@@ -78,31 +73,23 @@ private:
         size_t length;
     };
 
-    QueueHandle_t uplink_queue;
+    QueueHandle_t downlink_queue;
 
-    void send_messages();
 
-    void on_downlink(AsyncWebServerRequest *request) const;
+    void flush_downlink_queue();
 
-    void on_body_data(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) const;
-
-    void on_event(AsyncWebServerRequest *request, body_data_t* body_data) const;
-
-    void on_uplink(AsyncWebServerRequest *request) const;
-
+    esp_websocket_client_handle_t datalink_client = nullptr;
     uint32_t last_connection_attempt = 0;
     uint32_t last_transmission = 0;
     const uint32_t connection_interval = 5000;
-    WiFiClient wifi_client;
-    AsyncWebServer downlink_server;
-    AsyncWebHandler downlink_handler;
-    HTTPClient uplink_client;
 
 public:
 
-    NetworkInterface() : downlink_server(47670) {
+    NetworkInterface() {
         pinMode(ACTIVITY_LED, OUTPUT);
     }
+
+    static void on_datalink_uplink(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 
     static void network_task(void *pvParameters);
 
@@ -116,7 +103,6 @@ public:
 
     void queue_message(target_endpoint endpoint, const char *data, size_t length) const;
 
-    void check_wifi_health();
 };
 
 

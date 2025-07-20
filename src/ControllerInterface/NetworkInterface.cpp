@@ -9,143 +9,144 @@
 
 void NetworkInterface::begin() {
     // The network interface runs on Core 0
-    this->uplink_queue = xQueueCreate(10, sizeof(uplink_message_t));
     this->downlink_queue = xQueueCreate(10, sizeof(downlink_message_t));
-
-    // Set up the downlink server and it's callbacks (which are lambda's that call other functions)
-    this->downlink_server.onRequestBody([this](AsyncWebServerRequest *request,
-                                               uint8_t *data, size_t len, size_t index, size_t total) {
-        this->on_body_data(request, data, len, index, total);
-    });
-    this->downlink_server.on("/uplink", HTTP_GET, [this](AsyncWebServerRequest *request) {
-        // When the endpoint is hit, call the appropriate function
-        this->on_uplink(request);
-    });
-    this->downlink_server.begin();
-}
-
-void NetworkInterface::on_downlink(AsyncWebServerRequest *request) const {
-    request->send(404, "text/plain", "Not implemented");
-}
-
-void NetworkInterface::on_body_data(AsyncWebServerRequest *request, uint8_t *data, size_t len,
-    size_t index, size_t total) const {
-    if (request->_tempObject == nullptr) {
-        request->_tempObject = new body_data_t();
-        analogWrite(ACTIVITY_LED, 64);
-    }
-    // This method might be called multiple times to build up the body data
-    auto *body_data = static_cast<body_data_t *>(request->_tempObject);
-    memcpy(body_data->data + body_data->length, data, len);
-    body_data->length += len;
-    if (index + len == total) {
-        // If this is the last chunk of data, call the appropriate function
-        if (strcmp(request->url().c_str(), "/event") == 0) {
-            this->on_event(request, body_data);
-        } else {
-            request->send(404, "text/plain", "Not implemented");
-            analogWrite(ACTIVITY_LED, 0);
-        }
-    }
-}
-
-void NetworkInterface::on_uplink(AsyncWebServerRequest *request) const {
-    analogWrite(ACTIVITY_LED, 128);
-    xSemaphoreTake(this->uplinkData->mutex, portMAX_DELAY);
-    request->send(200, "application/json", this->uplinkData->payload);
-    analogWrite(ACTIVITY_LED, 0);
-    xSemaphoreGive(this->uplinkData->mutex);
-}
-
-void NetworkInterface::on_event(AsyncWebServerRequest *request, body_data_t* body_data) const {
-    // Read the body data from the request
-    if (body_data == nullptr) {
-        request->send(400, "text/plain", "No body data");
-        analogWrite(ACTIVITY_LED, 0);
+    this->uplink_queue = xQueueCreate(10, sizeof(uplink_message_t));
+    constexpr esp_websocket_client_config_t ws_cfg = {
+        .uri = CENTRAL_DATALINK_ENDPOINT,
+        .port = CENTRAL_DATALINK_PORT,
+        .buffer_size = 1024,
+    };
+    this->datalink_client = esp_websocket_client_init(&ws_cfg);
+    if (this->datalink_client == nullptr) {
+        Serial.println("FATAL: Failed to initialize WebSocket client");
         return;
     }
-    // Copy the data into a downlink message and send it to the downlink queue
-    downlink_message_t message;
-    if (body_data->length > 512) {
-        request->send(400, "text/plain", "Payload too large: Max 512 bytes");
-        analogWrite(ACTIVITY_LED, 0);
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("FATAL: WiFi is not connected, cannot start network interface");
         return;
     }
-    memcpy(message.data, body_data->data, body_data->length);
-    message.length = body_data->length;
-    message.type = downlink_message_t::EVENT;
-    const auto result = xQueueSend(downlink_queue, &message, 1000);
-    if (result != pdTRUE) {
-        request->send(500, "text/plain", "Queue full");
-        analogWrite(ACTIVITY_LED, 0);
+    const esp_err_t err = esp_websocket_client_start(this->datalink_client);
+    if (err != ESP_OK) {
+        Serial.printf("FATAL: Failed to start WebSocket client: %s\n", esp_err_to_name(err));
         return;
     }
-    request->send(200, "text/plain", "In Queue");
-    // delete body_data;
-    analogWrite(ACTIVITY_LED, 0);
+    // Send device information to the server hardcoded for now
+    constexpr char device_info[] = R"({"name": "RoomDevice", "sub_device_count": 2, "sub_devices": ["radiator", "motion_detector"], "msg_type":"connection_info"})";
+    const esp_err_t info_err = esp_websocket_client_send_text(
+        this->datalink_client, device_info, sizeof(device_info) - 1, 1000);
+    if (info_err != ESP_OK) {
+        Serial.printf("FATAL: Failed to send device info: %s\n", esp_err_to_name(info_err));
+        return;
+    }
+    esp_websocket_register_events(
+        this->datalink_client,
+        WEBSOCKET_EVENT_DATA,
+        NetworkInterface::on_datalink_uplink,
+        this->datalink_client
+    );
+    Serial.println("Network Interface Initialized");
 }
-
 
 [[noreturn]] void NetworkInterface::network_task(void *pvParameters) {
     auto *network_interface = static_cast<NetworkInterface *>(pvParameters);
     while (true) {
         network_interface->last_connection_attempt = millis();
-        if (WiFi.status() == WL_CONNECTED) {
-            network_interface->send_messages();
-        } else if (WiFi.status() == WL_CONNECT_FAILED) {
-            // Reboot
-            ESP.restart();
-        } else {
-            WiFi.reconnect();
+        switch (WiFi.status()) {
+            case WL_CONNECTED:
+                network_interface->flush_downlink_queue();
+                break;
+            case WL_DISCONNECTED:
+                WiFi.reconnect();
+            default:
+                break;
         }
         esp_task_wdt_reset();
         vTaskDelay(100);
     }
 }
 
+
 void NetworkInterface::queue_message(
     const target_endpoint endpoint, const char *data, const size_t length) const {
-    uplink_message_t message;
+    downlink_message_t message;
     memcpy(message.data, data, length);
     message.length = length;
     message.endpoint = endpoint;
     message.timestamp = millis();
-    xQueueSend(uplink_queue, &message, 10000);
+    xQueueSend(downlink_queue, &message, 10000);
 }
+
+/**
+ * This event handler is called when the WebSocket client receives data from the server.
+ * @param handler_args Pointer to the NetworkInterface instance that registered this handler.
+ * @param base The event base, which can be assumed to be WEBSOCKET_EVENT_BASE.
+ * @param event_id Can be assumed to be WEBSOCKET_EVENT_DATA
+ * @param event_data Pointer to the event data, which is an esp_websocket_event_data_t structure.
+ */
+void NetworkInterface::on_datalink_uplink(void *handler_args, esp_event_base_t base,
+                                          int32_t event_id, void *event_data){
+    const auto *network_interface = static_cast<NetworkInterface *>(handler_args);
+    const auto *data = static_cast<esp_websocket_event_data_t *>(event_data);
+    if (data->payload_offset != 0) {
+        Serial.printf("Received data with payload offset %d, ignoring\n", data->payload_offset);
+        return; // Ignore messages with payload offset
+    }
+    if (data->data_len == 0) {
+        Serial.println("Received empty message, ignoring");
+        return; // Ignore empty messages
+    }
+    if (data->data_len >= 1024) {
+        Serial.printf("Received message too large (%d bytes), ignoring\n", data->data_len);
+        return; // Ignore messages that are too large
+    }
+    if (data->data_len > sizeof(uplink_message_t::data)) {
+        Serial.printf("Received message too large (%d bytes), ignoring\n", data->data_len);
+        return; // Ignore messages that are too large
+    }
+    // Put the received data into a message structure
+    uplink_message_t message;
+    message.length = data->data_len;
+    message.timestamp = millis();
+    memcpy(message.data, data->data_ptr, data->data_len);
+    // Send the message to the uplink queue
+    const auto status = xQueueSend(network_interface->uplink_queue, &message, 200);
+    if (status != pdTRUE) {
+        Serial.printf("Failed to move inbound message to uplink queue %s\n",
+                       status == errQUEUE_FULL ? "Queue is full" : "Unknown error");
+    } else {
+        Serial.printf("Received uplink message [%d bytes]: %s\n", message.length, message.data);
+    }
+}
+
 
 /**
  *
  */
-void NetworkInterface::send_messages() {
-    uplink_message_t message;
+void NetworkInterface::flush_downlink_queue() {
+    downlink_message_t message;
     while (true) {
-        if (xQueueReceive(uplink_queue, &message, 0) == pdTRUE) {
+        if (xQueueReceive(downlink_queue, &message, 0) == pdTRUE) {
             analogWrite(ACTIVITY_LED, 32);
             if (WiFi.status() != WL_CONNECTED) {
                 Serial.println("WiFi is not connected, skipping message");
                 analogWrite(ACTIVITY_LED, 0);
                 break;
             }
+            if (!esp_websocket_client_is_connected(datalink_client)) {
+                Serial.println("WebSocket client is not connected, aborting data downlink");
+                analogWrite(ACTIVITY_LED, 0);
+                break;
+            }
             const uint32_t queue_time = millis() - message.timestamp;
             // Init a timer to keep track of how long it takes to send a message
             const uint32_t start_time = millis();
-            uplink_client.begin(CENTRAL_HOSTNAME, CENTRAL_PORT,
-                message.endpoint == EVENT ? "/event" : "/uplink");
-            uplink_client.addHeader("Content-Type", "application/json");
-            uplink_client.setUserAgent("ESP32");
-            uplink_client.setTimeout(2500);
-            const uint32_t setup_time = millis() - start_time;
-            // uplink_client.addHeader("Authorization", CENTRAL_AUTH);
-            // For debug print the message
-            const int http_code = uplink_client.POST(
-                reinterpret_cast<uint8_t *>(message.data), message.length);
-            // Serial.print("Message sent with code: ");
-            // Serial.println(http_code);
-            if (http_code != 200) {
-                Serial.printf("Failed to send message with code: %d\n", http_code);
-                failed_connection_attempts++;
+            const esp_err_t err = esp_websocket_client_send_text(
+                datalink_client, message.data, message.length, 1000);
+            if (err != ESP_OK) {
+                Serial.printf("Failed to send message: %s\n", esp_err_to_name(err));
+                analogWrite(ACTIVITY_LED, 0);
+                continue; // Skip this message if it failed to send
             }
-            uplink_client.end();
             Serial.printf("%s sent [%d bytes] in %dms [%.02f bytes/s] [Queue Time: %dms]\n",
                 message.endpoint == EVENT ? "Event " : "Uplink",
                 message.length,

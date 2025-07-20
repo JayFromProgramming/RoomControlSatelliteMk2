@@ -60,7 +60,7 @@ private:
     NetworkInterface::UplinkDataStruct* uplinkData = new NetworkInterface::UplinkDataStruct();
     DeviceList* devices = nullptr;
     SystemTasks* system_tasks = new SystemTasks[4];
-    SemaphoreHandle_t uplinkSemaphore = xSemaphoreCreateBinary();
+    SemaphoreHandle_t downlinkSemaphore = xSemaphoreCreateBinary();
     SemaphoreHandle_t exclusive_uplink_mutex = xSemaphoreCreateMutex();
     TickType_t last_event_parse;
     char* uplink_target_device = nullptr;
@@ -174,9 +174,9 @@ public:
 
     void startDeviceLoops() const;
 
-    void sendUplink(); // Send the uplink data to the network interface.
+    void sendDownlink(); // Send the uplink data to the network interface.
 
-    void uplinkNow(char* target_device); // Set the uplink semaphore to send the uplink now instead of waiting for next timer.
+    void downlinkNow(char* target_device); // Set the uplink semaphore to send the uplink now instead of waiting for next timer.
 
     static void interfaceLoop(void *pvParameters);
 
