@@ -146,7 +146,7 @@ void Radiator::setOn(const boolean on) {
             if (!on) cooldown_start = xTaskGetTickCount();
     }
     this->on = on;
-    DEBUG_PRINT("Radiator has been set %s\n", on ? "on" : "off");
+    DEBUG_PRINT("Radiator has been set %s", on ? "on" : "off");
     digitalWrite(RADIATOR_PIN, on ? LOW : HIGH);
     uplinkNow(); // Force a transmission of the device data.
 }

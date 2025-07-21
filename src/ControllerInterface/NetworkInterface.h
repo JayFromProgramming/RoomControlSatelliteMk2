@@ -7,8 +7,6 @@
 
 #include <WiFi.h>
 #include <ArduinoJson.h>
-
-#include <esp_websocket_client.h>
 #include "secrets.h"
 #include "debug.h"
 
@@ -65,8 +63,12 @@ public:
 
 private:
 
+    char device_info[1024] = {0};
+    size_t device_info_length = 0;
     uint8_t failed_connection_attempts = 0;
     network_state_t last_state = WIRELESS_DOWN;
+
+    TaskHandle_t uplink_task_handle = nullptr;
 
     struct body_data_t {
         uint8_t data[1024];
@@ -75,10 +77,12 @@ private:
 
     QueueHandle_t downlink_queue;
 
+    static void poll_uplink_buffer(void *pvParameters);
 
     void flush_downlink_queue();
+    void handle_uplink_data(uint8_t* data, const size_t length);
 
-    esp_websocket_client_handle_t datalink_client = nullptr;
+    WiFiClient* datalink_client;
     uint32_t last_connection_attempt = 0;
     uint32_t last_transmission = 0;
     const uint32_t connection_interval = 5000;
@@ -89,17 +93,15 @@ public:
         pinMode(ACTIVITY_LED, OUTPUT);
     }
 
-    static void on_datalink_uplink(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
-
     static void network_task(void *pvParameters);
 
-    void begin();
+    void begin(const char* device_info, const size_t device_info_length);
+
+    void establish_connection();
 
     void pass_uplink_data(UplinkDataStruct* data) {
         this->uplinkData = data;
     }
-
-    network_state_t link_status();
 
     void queue_message(const char *data, size_t length) const;
 

@@ -7,51 +7,48 @@
 
 #include <esp_task_wdt.h>
 
-void NetworkInterface::begin() {
+void NetworkInterface::begin(const char* device_info, const size_t device_info_length) {
+    DEBUG_PRINT("Initializing Network Interface");
+    memcpy(this->device_info, device_info, device_info_length);
+    this->device_info_length = device_info_length;
     // The network interface runs on Core 0
     this->downlink_queue = xQueueCreate(10, sizeof(downlink_message_t));
     this->uplink_queue = xQueueCreate(10, sizeof(uplink_message_t));
-    constexpr esp_websocket_client_config_t ws_cfg = {
-        .uri = CENTRAL_DATALINK_ENDPOINT,
-        .port = CENTRAL_DATALINK_PORT,
-        .buffer_size = 1024,
-    };
-    this->datalink_client = esp_websocket_client_init(&ws_cfg);
-    if (this->datalink_client == nullptr) {
-        DEBUG_PRINT("FATAL: Failed to initialize WebSocket client");
-        return;
-    }
-    if (WiFi.status() != WL_CONNECTED) {
-        DEBUG_PRINT("FATAL: WiFi is not connected, cannot start network interface");
-        return;
-    }
-    const esp_err_t err = esp_websocket_client_start(this->datalink_client);
-    if (err != ESP_OK) {
-        DEBUG_PRINT("FATAL: Failed to start WebSocket client: %s\n", esp_err_to_name(err));
-        return;
-    }
-    while (!esp_websocket_client_is_connected(this->datalink_client)) {
-        DEBUG_PRINT("Waiting for WebSocket client to connect...");
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
-    // Send device information to the server hardcoded for now
-    constexpr char device_info[] = R"({"name": "RoomDevice", "sub_device_count": 2,
-            "sub_devices": [{"device_id": "motion_detector", "device_type": "MotionDetector"},
-            {"device_id": "radiator", "device_type": "Radiator"}],
-            "msg_type":"connection_info"})";
-    const esp_err_t info_err = esp_websocket_client_send_text(
-        this->datalink_client, device_info, sizeof(device_info) - 1, 1000);
-    if (info_err != ESP_OK) {
-        DEBUG_PRINT("FATAL: Failed to send device info: %s\n", esp_err_to_name(info_err));
-        return;
-    }
-    esp_websocket_register_events(
-        this->datalink_client,
-        WEBSOCKET_EVENT_DATA,
-        NetworkInterface::on_datalink_uplink,
-        this->datalink_client
-    );
+    // Setup wifi client
+    this->datalink_client = new WiFiClient();
+    // Initialize the tcp/ip connection to the server
+    this->datalink_client->setTimeout(1000); // Set a timeout for the connection
+    // this->datalink_client->setNoDelay(true); // Disable Nagle's algorithm for low latency
+    this->establish_connection();
+    xTaskCreate(NetworkInterface::poll_uplink_buffer,
+                 "NetworkInterface::poll_uplink_buffer",
+                 4096,
+                 this,
+                 1,
+                 &this->uplink_task_handle);
     DEBUG_PRINT("Network interface initialized successfully");
+}
+
+void NetworkInterface::establish_connection() {
+    DEBUG_PRINT("Establishing connection to %s:%d", CENTRAL_HOST, CENTRAL_PORT);
+    while (true) {
+    const auto connect_result = this->datalink_client->connect(CENTRAL_HOST, CENTRAL_PORT);
+        if (!connect_result) {
+            DEBUG_PRINT("Failed to connect to %s:%d, retrying in 5 seconds...", CENTRAL_HOST, CENTRAL_PORT);
+            vTaskDelay(5000 / portTICK_PERIOD_MS);
+            continue; // Retry connection
+        }
+        break; // Connection successful
+    }
+    DEBUG_PRINT("Connected to %s:%d sending device information...", CENTRAL_HOST, CENTRAL_PORT);
+    device_info[device_info_length + 1] = '\0'; // Ensure the last byte is a null terminated
+    const auto wrote = this->datalink_client->write(device_info, device_info_length + 1); // +1 for the null terminator
+    if (wrote != device_info_length + 1) {
+        DEBUG_PRINT("Failed to write device info to server, wrote %d != %d bytes",
+                   wrote, device_info_length);
+        return;
+    }
+    DEBUG_PRINT("Device information sent successfully [%d bytes]", wrote);
 }
 
 [[noreturn]] void NetworkInterface::network_task(void *pvParameters) {
@@ -72,13 +69,31 @@ void NetworkInterface::begin() {
     }
 }
 
-
 void NetworkInterface::queue_message(const char *data, const size_t length) const {
     downlink_message_t message;
     memcpy(message.data, data, length);
     message.length = length;
-    message.timestamp = millis();
+    message.timestamp = micros();
     xQueueSend(downlink_queue, &message, 10000);
+}
+
+void NetworkInterface::poll_uplink_buffer(void *pvParameters) {
+    DEBUG_PRINT("Starting Uplink Polling Task");
+    auto *network_interface = static_cast<NetworkInterface *>(pvParameters);
+    uint8_t buffer[1024];
+    while (true) {
+        if (!network_interface->datalink_client->connected()) {
+            vTaskDelay(5000);
+        }
+        // Check if there is data to read from the WebSocket client
+        const auto read = network_interface->datalink_client->readBytesUntil('\0', buffer, sizeof(buffer) - 1);
+        if (read > 0) {
+            // Handle the received data
+            network_interface->handle_uplink_data(buffer, read);
+        } else if (read == 0) {
+            DEBUG_PRINT("Error reading from WebSocket client: %d", read);
+        }
+    }
 }
 
 /**
@@ -88,35 +103,16 @@ void NetworkInterface::queue_message(const char *data, const size_t length) cons
  * @param event_id Can be assumed to be WEBSOCKET_EVENT_DATA
  * @param event_data Pointer to the event data, which is an esp_websocket_event_data_t structure.
  */
-void NetworkInterface::on_datalink_uplink(void *handler_args, esp_event_base_t base,
-                                          int32_t event_id, void *event_data){
-    const auto *network_interface = static_cast<NetworkInterface *>(handler_args);
-    const auto *data = static_cast<esp_websocket_event_data_t *>(event_data);
-    if (data->payload_offset != 0) {
-        DEBUG_PRINT("Received data with payload offset %d, ignoring\n", data->payload_offset);
-        return; // Ignore messages with payload offset
-    }
-    if (data->data_len == 0) {
-        DEBUG_PRINT("Received empty message, ignoring");
-        return; // Ignore empty messages
-    }
-    if (data->data_len >= 1024) {
-        DEBUG_PRINT("Received message too large (%d bytes), ignoring\n", data->data_len);
-        return; // Ignore messages that are too large
-    }
-    if (data->data_len > sizeof(uplink_message_t::data)) {
-        DEBUG_PRINT("Received message too large (%d bytes), ignoring\n", data->data_len);
-        return; // Ignore messages that are too large
-    }
+void NetworkInterface::handle_uplink_data(uint8_t* data, const size_t length) {
     // Put the received data into a message structure
     uplink_message_t message;
-    message.length = data->data_len;
+    message.length = length;
     message.timestamp = millis();
-    memcpy(message.data, data->data_ptr, data->data_len);
+    memcpy(message.data, data, length);
     // Send the message to the uplink queue
-    const auto status = xQueueSend(network_interface->uplink_queue, &message, 200);
+    const auto status = xQueueSend(this->uplink_queue, &message, 200);
     if (status != pdTRUE) {
-        DEBUG_PRINT("Failed to move inbound message to uplink queue %s\n",
+        DEBUG_PRINT("Failed to move inbound message to uplink queue %s",
                        status == errQUEUE_FULL ? "Queue is full" : "Unknown error");
     } else {
         DEBUG_PRINT("Received uplink message [%d bytes]: %s\n", message.length, message.data);
@@ -137,26 +133,31 @@ void NetworkInterface::flush_downlink_queue() {
                 analogWrite(ACTIVITY_LED, 0);
                 break;
             }
-            if (!esp_websocket_client_is_connected(datalink_client)) {
-                DEBUG_PRINT("WebSocket client is not connected, aborting data downlink");
-                analogWrite(ACTIVITY_LED, 0);
-                break;
+            if (!datalink_client->connected()) {
+                DEBUG_PRINT("Socket is not connected, attempting to reconnect");
+                this->establish_connection();
+                if (!datalink_client->connected()) {
+                    DEBUG_PRINT("Failed to reconnect to server, skipping message");
+                    analogWrite(ACTIVITY_LED, 0);
+                    continue; // Skip this message if we can't reconnect
+                }
             }
-            const uint32_t queue_time = millis() - message.timestamp;
+            const uint32_t queue_time = micros() - message.timestamp;
             // Init a timer to keep track of how long it takes to send a message
-            const uint32_t start_time = millis();
-            const esp_err_t err = esp_websocket_client_send_text(
-                datalink_client, message.data, message.length, 1000);
-            if (err != ESP_OK) {
-                DEBUG_PRINT("Failed to send message: %s\n", esp_err_to_name(err));
+            const uint32_t start_time = micros();
+            message.data[message.length] = '\0'; // Bell-terminate the message data
+            const auto wrote = datalink_client->write(message.data, message.length + 1); // +1 for the bell termination
+            if (wrote != message.length + 1) {
+                DEBUG_PRINT("Failed to write downlink message, wrote %d < %d bytes",
+                               wrote, message.length);
                 analogWrite(ACTIVITY_LED, 0);
-                continue; // Skip this message if it failed to send
+                continue; // Skip this message if we can't write it
             }
-            DEBUG_PRINT("%s sent [%d bytes] in %dms [%.02f bytes/s] [Queue Time: %dms]\n",
+            DEBUG_PRINT("%s sent [%d bytes] in %dus [%.02f bytes/s] [Queue Time: %dms]",
                 message.endpoint == EVENT ? "Event " : "Uplink",
                 message.length,
-                millis() - start_time,
-                message.length / ((millis() - start_time) / 1000.0),
+                micros() - start_time,
+                message.length / ((micros() - start_time) / 1000000.0f),
                 queue_time);
             last_transmission = millis();
             analogWrite(ACTIVITY_LED, 0); // Turn off the activity LED to indicate no activity
@@ -165,16 +166,4 @@ void NetworkInterface::flush_downlink_queue() {
         } else break;
     }
 }
-
-/**
- * 
- * @return 
- */
-NetworkInterface::network_state_t NetworkInterface::link_status() {
-    if (WiFiClass::status() != WL_CONNECTED) {
-        return WIRELESS_DOWN;
-    }
-    return LINK_OK;
-}
-
 

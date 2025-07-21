@@ -9,6 +9,28 @@ class RoomDevice;
 // Instantiate the singleton instance of the RoomInterface
 auto MainRoomInterface = RoomInterface();
 
+size_t RoomInterface::getDeviceInfo(char* buffer) const {
+    auto payload = JsonDocument();
+    const auto root = payload.to<JsonObject>();
+    root["name"] = "TestingDevice"; // Placeholder for the device name
+    root["msg_type"] = "device_info"; // This is a device info message
+    root["sub_device_count"] = getDeviceCount();
+    root["sub_devices"] = JsonObject();
+    size_t index = 0;
+    for (auto current = devices; current != nullptr; current = current->next) {
+        root["sub_devices"][current->device->getObjectName()] = current->device->getObjectType();
+    }
+    DEBUG_PRINT("Created device info payload with %d sub devices", root["sub_devices"].size());
+    // Serialize the json data into the buffer.
+    memset(buffer, 0, 1024); // Clear the buffer
+    const auto serialized = serializeJson(payload, buffer, 1024);
+    if (serialized == 0) {
+        DEBUG_PRINT("Failed to serialize device info payload");
+        return 0; // Return 0 on failure
+    }
+    DEBUG_PRINT("Serialized device info payload: %s", buffer);
+    return serialized; // Return the size of the serialized data
+}
 
 void RoomInterface::startDeviceLoops() const {
     for (auto current = devices; current != nullptr; current = current->next) {
@@ -35,7 +57,7 @@ void RoomInterface::sendDownlink() {
         const auto deviceData = current->device->getDeviceData();
         root["objects"][current->device->getObjectName()] = deviceData;
     }
-    DEBUG_PRINT("Sending downlink: %s : %d\n", downlink_target_device == nullptr ? "All" : downlink_target_device,
+    DEBUG_PRINT("Sending downlink: %s : %d", downlink_target_device == nullptr ? "All" : downlink_target_device,
         root["objects"].size());
     if (downlink_target_device == nullptr) last_full_send = millis(); // Update the last full send time
     downlink_target_device = nullptr; // Reset the exclusive downlink target device
@@ -213,7 +235,7 @@ ParsedEvent_t* RoomInterface::eventParse(const char* data) {
 }
 
 void RoomInterface::eventExecute(ParsedEvent_t* event) const {
-    DEBUG_PRINT("Executing Event: %s\n", event->eventName);
+    DEBUG_PRINT("Executing Event: %s", event->eventName);
     for (auto current = devices; current != nullptr; current = current->next) {
         // Serial.printf("Checking Device: %s : %s\n", current->device->getObjectName(), event->objectName);
         if (strcmp(current->device->getObjectName(), event->objectName) == 0) {

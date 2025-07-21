@@ -7,6 +7,8 @@
 // #include "Devices/Radiator.h"
 // #include <esp_system.h>
 #include <esp_task_wdt.h>
+
+#include "ping.h"
 // #include <Devices/BlueStalker.h>
 // #include <esp32/rom/ets_sys.h>
 
@@ -59,14 +61,14 @@ void current_time(char* buffer) {
 }
 
 void setup() {
-    Serial.begin(9600);
+    Serial.begin(115200); // Initialize serial communication at 115200 baud rate
     DEBUG_PRINT("Starting WiFi...");
     WiFi.mode(WIFI_MODE_STA);  // Setup wifi to connect to an access point
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD); // Pass the SSID and Password to the WiFi.begin function
     WiFi.setAutoReconnect(true); // Enable auto reconnect
     WiFi.setHostname("RoomDevice"); // Set the hostname of the device (doesn't seem to work)
     DEBUG_PRINT("Wi-FI MAC Address: %s", WiFi.macAddress().c_str());
-    DEBUG_PRINT("Attempting to connect to WiFi SSID: %s", WIFI_SSID);
+    DEBUG_PRINT("Attempting to connect to WiFi SSID: \"%s\" with Password: \"%s\"", WIFI_SSID, WIFI_PASSWORD);
     auto wifi_status = WiFi.waitForConnectResult();
     if (wifi_status != WL_CONNECTED) {
         DEBUG_PRINT("WiFi failed to connect [%s], restarting...", wifi_status_to_string(static_cast<wl_status_t>(wifi_status)));
@@ -78,7 +80,7 @@ void setup() {
         wifi_status_to_string(static_cast<wl_status_t>(wifi_status)),
         WiFi.localIP().toString().c_str());
     // Set the time using the NTP protocol
-    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+    configTime(0, 0, "time.mtu.edu", "pool.ntp.org", "time.nist.gov");
     radiator = new Radiator();
     // motionDetector = new MotionDetector();
     // environmentSensor = new EnvironmentSensor();
@@ -87,7 +89,6 @@ void setup() {
     MainRoomInterface.begin();
     DEBUG_PRINT("Task startup complete.");
     esp_task_wdt_init(10, true);
-
 }
 
 void loop() {

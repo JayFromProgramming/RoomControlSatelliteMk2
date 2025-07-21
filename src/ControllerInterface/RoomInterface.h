@@ -71,6 +71,8 @@ public:
 
     }
 
+    size_t getDeviceInfo(char* buffer) const;
+
     void begin() {
         DEBUG_PRINT("Initializing Room Interface");
         // The network interface runs on Core 0
@@ -78,7 +80,9 @@ public:
         uplinkData->length = 0;
         uplinkData->mutex = xSemaphoreCreateMutex(); // The mutex is locked when accessing the uplink data
         networkInterface->pass_uplink_data(uplinkData);
-        networkInterface->begin();
+        char info_buffer[1024] = {0};
+        const auto info_size = getDeviceInfo(info_buffer);
+        networkInterface->begin(info_buffer, info_size);
         for (auto & i : argumentScratchSpace) {
             i.finished = true;
         }
