@@ -18,24 +18,31 @@ void NetworkInterface::begin() {
     };
     this->datalink_client = esp_websocket_client_init(&ws_cfg);
     if (this->datalink_client == nullptr) {
-        Serial.println("FATAL: Failed to initialize WebSocket client");
+        DEBUG_PRINT("FATAL: Failed to initialize WebSocket client");
         return;
     }
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("FATAL: WiFi is not connected, cannot start network interface");
+        DEBUG_PRINT("FATAL: WiFi is not connected, cannot start network interface");
         return;
     }
     const esp_err_t err = esp_websocket_client_start(this->datalink_client);
     if (err != ESP_OK) {
-        Serial.printf("FATAL: Failed to start WebSocket client: %s\n", esp_err_to_name(err));
+        DEBUG_PRINT("FATAL: Failed to start WebSocket client: %s\n", esp_err_to_name(err));
         return;
     }
+    while (!esp_websocket_client_is_connected(this->datalink_client)) {
+        DEBUG_PRINT("Waiting for WebSocket client to connect...");
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
     // Send device information to the server hardcoded for now
-    constexpr char device_info[] = R"({"name": "RoomDevice", "sub_device_count": 2, "sub_devices": ["radiator", "motion_detector"], "msg_type":"connection_info"})";
+    constexpr char device_info[] = R"({"name": "RoomDevice", "sub_device_count": 2,
+            "sub_devices": [{"device_id": "motion_detector", "device_type": "MotionDetector"},
+            {"device_id": "radiator", "device_type": "Radiator"}],
+            "msg_type":"connection_info"})";
     const esp_err_t info_err = esp_websocket_client_send_text(
         this->datalink_client, device_info, sizeof(device_info) - 1, 1000);
     if (info_err != ESP_OK) {
-        Serial.printf("FATAL: Failed to send device info: %s\n", esp_err_to_name(info_err));
+        DEBUG_PRINT("FATAL: Failed to send device info: %s\n", esp_err_to_name(info_err));
         return;
     }
     esp_websocket_register_events(
@@ -44,7 +51,7 @@ void NetworkInterface::begin() {
         NetworkInterface::on_datalink_uplink,
         this->datalink_client
     );
-    Serial.println("Network Interface Initialized");
+    DEBUG_PRINT("Network interface initialized successfully");
 }
 
 [[noreturn]] void NetworkInterface::network_task(void *pvParameters) {
@@ -66,12 +73,10 @@ void NetworkInterface::begin() {
 }
 
 
-void NetworkInterface::queue_message(
-    const target_endpoint endpoint, const char *data, const size_t length) const {
+void NetworkInterface::queue_message(const char *data, const size_t length) const {
     downlink_message_t message;
     memcpy(message.data, data, length);
     message.length = length;
-    message.endpoint = endpoint;
     message.timestamp = millis();
     xQueueSend(downlink_queue, &message, 10000);
 }
@@ -88,19 +93,19 @@ void NetworkInterface::on_datalink_uplink(void *handler_args, esp_event_base_t b
     const auto *network_interface = static_cast<NetworkInterface *>(handler_args);
     const auto *data = static_cast<esp_websocket_event_data_t *>(event_data);
     if (data->payload_offset != 0) {
-        Serial.printf("Received data with payload offset %d, ignoring\n", data->payload_offset);
+        DEBUG_PRINT("Received data with payload offset %d, ignoring\n", data->payload_offset);
         return; // Ignore messages with payload offset
     }
     if (data->data_len == 0) {
-        Serial.println("Received empty message, ignoring");
+        DEBUG_PRINT("Received empty message, ignoring");
         return; // Ignore empty messages
     }
     if (data->data_len >= 1024) {
-        Serial.printf("Received message too large (%d bytes), ignoring\n", data->data_len);
+        DEBUG_PRINT("Received message too large (%d bytes), ignoring\n", data->data_len);
         return; // Ignore messages that are too large
     }
     if (data->data_len > sizeof(uplink_message_t::data)) {
-        Serial.printf("Received message too large (%d bytes), ignoring\n", data->data_len);
+        DEBUG_PRINT("Received message too large (%d bytes), ignoring\n", data->data_len);
         return; // Ignore messages that are too large
     }
     // Put the received data into a message structure
@@ -111,10 +116,10 @@ void NetworkInterface::on_datalink_uplink(void *handler_args, esp_event_base_t b
     // Send the message to the uplink queue
     const auto status = xQueueSend(network_interface->uplink_queue, &message, 200);
     if (status != pdTRUE) {
-        Serial.printf("Failed to move inbound message to uplink queue %s\n",
+        DEBUG_PRINT("Failed to move inbound message to uplink queue %s\n",
                        status == errQUEUE_FULL ? "Queue is full" : "Unknown error");
     } else {
-        Serial.printf("Received uplink message [%d bytes]: %s\n", message.length, message.data);
+        DEBUG_PRINT("Received uplink message [%d bytes]: %s\n", message.length, message.data);
     }
 }
 
@@ -128,12 +133,12 @@ void NetworkInterface::flush_downlink_queue() {
         if (xQueueReceive(downlink_queue, &message, 0) == pdTRUE) {
             analogWrite(ACTIVITY_LED, 32);
             if (WiFi.status() != WL_CONNECTED) {
-                Serial.println("WiFi is not connected, skipping message");
+                DEBUG_PRINT("WiFi is not connected, skipping message");
                 analogWrite(ACTIVITY_LED, 0);
                 break;
             }
             if (!esp_websocket_client_is_connected(datalink_client)) {
-                Serial.println("WebSocket client is not connected, aborting data downlink");
+                DEBUG_PRINT("WebSocket client is not connected, aborting data downlink");
                 analogWrite(ACTIVITY_LED, 0);
                 break;
             }
@@ -143,11 +148,11 @@ void NetworkInterface::flush_downlink_queue() {
             const esp_err_t err = esp_websocket_client_send_text(
                 datalink_client, message.data, message.length, 1000);
             if (err != ESP_OK) {
-                Serial.printf("Failed to send message: %s\n", esp_err_to_name(err));
+                DEBUG_PRINT("Failed to send message: %s\n", esp_err_to_name(err));
                 analogWrite(ACTIVITY_LED, 0);
                 continue; // Skip this message if it failed to send
             }
-            Serial.printf("%s sent [%d bytes] in %dms [%.02f bytes/s] [Queue Time: %dms]\n",
+            DEBUG_PRINT("%s sent [%d bytes] in %dms [%.02f bytes/s] [Queue Time: %dms]\n",
                 message.endpoint == EVENT ? "Event " : "Uplink",
                 message.length,
                 millis() - start_time,

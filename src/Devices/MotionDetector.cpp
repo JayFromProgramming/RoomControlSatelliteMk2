@@ -8,7 +8,7 @@ SemaphoreHandle_t motionEventMutex;
 __NOINIT_ATTR time_t lastMotionTimePreserver;
 
 MotionDetector::MotionDetector() {
-    Serial.println("Initializing Motion Detector");
+    DEBUG_PRINT("Initializing Motion Detector");
     pinMode(MOTION_DETECTOR_PIN, INPUT_PULLUP);
     motionEventMutex = xSemaphoreCreateBinary();
     attachInterrupt(digitalPinToInterrupt(MOTION_DETECTOR_PIN), MotionDetector::pinISR, CHANGE);
@@ -27,12 +27,12 @@ void MotionDetector::startTask(TaskHandle_t *taskHandle) {
 
 [[noreturn]] void MotionDetector::RTOSLoop(void* pvParameters) {
     auto* self = static_cast<MotionDetector *>(pvParameters);
-    Serial.println("Motion Detector Loop Started");
+    DEBUG_PRINT("Motion Detector Loop Started");
     while (true) {
         if (xSemaphoreTake(motionEventMutex, portMAX_DELAY) == pdTRUE) {
             // Read the pin state to determine which edge triggered the interrupt
             self->motionDetected = digitalRead(MOTION_DETECTOR_PIN);
-            Serial.printf("Motion Detected: %d\n", self->motionDetected);
+            DEBUG_PRINT("Motion Detected: %d\n", self->motionDetected);
             if (self->motionDetected) {
                 // Set the last motion time to the current time from the RTC
                 time(&self->lastMotionTime);
@@ -42,7 +42,7 @@ void MotionDetector::startTask(TaskHandle_t *taskHandle) {
             // Send the event to the RoomInterface
             const auto event = MotionDetector::getScratchSpace();
             if (event == nullptr) {
-                Serial.println("Failed to get scratch space for event");
+                DEBUG_PRINT("Failed to get scratch space for event");
                 continue;
             }
             event->objectName = writeStringToScratchSpace(self->getObjectName(), event);

@@ -60,26 +60,32 @@ void current_time(char* buffer) {
 
 void setup() {
     Serial.begin(9600);
-    Serial.println("Starting WiFi...");
+    DEBUG_PRINT("Starting WiFi...");
     WiFi.mode(WIFI_MODE_STA);  // Setup wifi to connect to an access point
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD); // Pass the SSID and Password to the WiFi.begin function
     WiFi.setAutoReconnect(true); // Enable auto reconnect
     WiFi.setHostname("RoomDevice"); // Set the hostname of the device (doesn't seem to work)
-    Serial.println("WiFi started.");
-    if (WiFi.waitForConnectResult() != WL_CONNECTED) {
-        Serial.println("WiFi failed to connect.");
+    DEBUG_PRINT("Wi-FI MAC Address: %s", WiFi.macAddress().c_str());
+    DEBUG_PRINT("Attempting to connect to WiFi SSID: %s", WIFI_SSID);
+    auto wifi_status = WiFi.waitForConnectResult();
+    if (wifi_status != WL_CONNECTED) {
+        DEBUG_PRINT("WiFi failed to connect [%s], restarting...", wifi_status_to_string(static_cast<wl_status_t>(wifi_status)));
+        vTaskDelay(5000);
         esp_restart();
         return;
     }
+    DEBUG_PRINT("WiFi connected [%s] with IP: %s",
+        wifi_status_to_string(static_cast<wl_status_t>(wifi_status)),
+        WiFi.localIP().toString().c_str());
     // Set the time using the NTP protocol
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
     radiator = new Radiator();
-    motionDetector = new MotionDetector();
-    environmentSensor = new EnvironmentSensor();
+    // motionDetector = new MotionDetector();
+    // environmentSensor = new EnvironmentSensor();
     // delay(1000);
-    Serial.println("Starting up all Tasks...");
+    DEBUG_PRINT("Starting up all Tasks...");
     MainRoomInterface.begin();
-    Serial.println("Task startup complete.");
+    DEBUG_PRINT("Task startup complete.");
     esp_task_wdt_init(10, true);
 
 }

@@ -10,7 +10,7 @@
 
 #include <esp_websocket_client.h>
 #include "secrets.h"
-
+#include "debug.h"
 
 #define ACTIVITY_LED 2
 
@@ -101,7 +101,7 @@ public:
 
     network_state_t link_status();
 
-    void queue_message(target_endpoint endpoint, const char *data, size_t length) const;
+    void queue_message(const char *data, size_t length) const;
 
 };
 

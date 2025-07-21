@@ -63,7 +63,7 @@ private:
     SemaphoreHandle_t downlinkSemaphore = xSemaphoreCreateBinary();
     SemaphoreHandle_t exclusive_uplink_mutex = xSemaphoreCreateMutex();
     TickType_t last_event_parse;
-    char* uplink_target_device = nullptr;
+    char* downlink_target_device = nullptr;
 
 public:
 
@@ -72,7 +72,7 @@ public:
     }
 
     void begin() {
-        Serial.println("Initializing Room Interface");
+        DEBUG_PRINT("Initializing Room Interface");
         // The network interface runs on Core 0
         uplinkData->payload = uplink_buffer;
         uplinkData->length = 0;
@@ -82,7 +82,6 @@ public:
         for (auto & i : argumentScratchSpace) {
             i.finished = true;
         }
-
         xTaskCreate(
             RoomInterface::interfaceLoop,
             "interfaceLoop",
@@ -122,7 +121,7 @@ public:
         );
         esp_task_wdt_add(system_tasks[3].handle);
         startDeviceLoops();
-        Serial.println("Room Interface Initialized");
+        DEBUG_PRINT("Room Interface Initialized");
     }
 
     /**

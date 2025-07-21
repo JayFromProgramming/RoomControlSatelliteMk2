@@ -7,10 +7,10 @@
 __NOINIT_ATTR uint32_t radiator_state_preserver;
 
 Radiator::Radiator() {
-    Serial.println("Initializing Radiator");
+    DEBUG_PRINT("Initializing Radiator");
     pinMode(RADIATOR_PIN, OUTPUT);
     if (radiator_state_preserver != PRESERVER_OFF && radiator_state_preserver != PRESERVER_ON) {
-        Serial.println("Radiator state has been reset");
+        DEBUG_PRINT("Radiator state has been reset");
         radiator_state_preserver = PRESERVER_OFF; // This magic number indicates off
     }
     if (radiator_state_preserver == PRESERVER_OFF) {
@@ -146,7 +146,7 @@ void Radiator::setOn(const boolean on) {
             if (!on) cooldown_start = xTaskGetTickCount();
     }
     this->on = on;
-    Serial.printf("Radiator has been set %s\n", on ? "on" : "off");
+    DEBUG_PRINT("Radiator has been set %s\n", on ? "on" : "off");
     digitalWrite(RADIATOR_PIN, on ? LOW : HIGH);
     uplinkNow(); // Force a transmission of the device data.
 }

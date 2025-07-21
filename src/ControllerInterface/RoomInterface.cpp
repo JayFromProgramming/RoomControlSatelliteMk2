@@ -12,45 +12,43 @@ auto MainRoomInterface = RoomInterface();
 
 void RoomInterface::startDeviceLoops() const {
     for (auto current = devices; current != nullptr; current = current->next) {
-        Serial.print("Starting Task: ");
-        Serial.println(current->device->getObjectName());
+        DEBUG_PRINT("Starting Task: %s", current->device->getObjectName());
         current->device->startTask(&current->taskHandle);
     }
 }
 
 /**
  * Packages the device data into a json object and sends it to the CENTRAL server.
- * @note If the uplink_target_device is not null, only the device with the matching name will be sent.
+ * @note If the downlink_target_device is not null, only the device with the matching name will be sent.
  */
 void RoomInterface::sendDownlink() {
     auto payload = JsonDocument();
     const auto root = payload.to<JsonObject>();
-    root["name"] = "RoomDevice";
     root["current_ip"] = WiFi.localIP().toString();
     root["objects"] = JsonObject();
-    root["auth"] = "AAAAAA"; // Not needed anymore but I've left it in just in case.
+    root["type"] = "downlink"; // This is a downlink message
     for (auto current = devices; current != nullptr; current = current->next) {
-        if (uplink_target_device != nullptr && // If exclusive uplink is requested, only send the target device
-            strcmp(current->device->getObjectName(), uplink_target_device) != 0) {
+        if (downlink_target_device != nullptr && // If exclusive downlink is requested, only send the target device
+            strcmp(current->device->getObjectName(), downlink_target_device) != 0) {
             continue;
-        } // Otherwise, add all devices to the uplink.
+        } // Otherwise, add all devices to the downlink.
         const auto deviceData = current->device->getDeviceData();
         root["objects"][current->device->getObjectName()] = deviceData;
     }
-    Serial.printf("Sending Uplink: %s : %d\n", uplink_target_device == nullptr ? "All" : uplink_target_device,
+    DEBUG_PRINT("Sending downlink: %s : %d\n", downlink_target_device == nullptr ? "All" : downlink_target_device,
         root["objects"].size());
-    if (uplink_target_device == nullptr) last_full_send = millis(); // Update the last full send time
-    uplink_target_device = nullptr; // Reset the exclusive uplink target device
+    if (downlink_target_device == nullptr) last_full_send = millis(); // Update the last full send time
+    downlink_target_device = nullptr; // Reset the exclusive downlink target device
     // Serialize the json data.
     char buffer[1024] = {0};
-    xSemaphoreTake(uplinkData->mutex, portMAX_DELAY); // Lock the uplink data mutex to write the payload
-    memset(uplinkData->payload, 0, 1024); // Clear the uplink buffer
+    xSemaphoreTake(uplinkData->mutex, portMAX_DELAY); // Lock the downlink data mutex to write the payload
+    memset(uplinkData->payload, 0, 1024); // Clear the downlink buffer
     const auto serialized = serializeJson(payload, &buffer, sizeof(buffer));
-    memcpy(uplinkData->payload, buffer, serialized); // Copy the serialized data to the uplink buffer
+    memcpy(uplinkData->payload, buffer, serialized); // Copy the serialized data to the downlink buffer
     uplinkData->length = serialized;
-    xSemaphoreGive(uplinkData->mutex); // Unlock the uplink data mutex
+    xSemaphoreGive(uplinkData->mutex); // Unlock the downlink data mutex
     // Queue the message to be sent to CENTRAL
-    networkInterface->queue_message(NetworkInterface::DOWNLINK, buffer, serialized);
+    networkInterface->queue_message(buffer, serialized);
 }
 
 /**
@@ -58,17 +56,17 @@ void RoomInterface::sendDownlink() {
  * @param target_device The name of the device to send the uplink to. If null, nothing happens and this was pointless.
  */
 void RoomInterface::downlinkNow(char* target_device) {
-    auto result = xSemaphoreTake(exclusive_uplink_mutex, 50);
+    const auto result = xSemaphoreTake(exclusive_uplink_mutex, 50);
     if (result != pdTRUE) {
-        Serial.println("Failed to take exclusive uplink mutex");
+        DEBUG_PRINT("Failed to take exclusive uplink mutex");
         return;
     }
-    if (uplink_target_device != nullptr) { // The uplink task is still processing a previous exclusive uplink
+    if (downlink_target_device != nullptr) { // The uplink task is still processing a previous exclusive uplink
         xSemaphoreGive(exclusive_uplink_mutex); // Release the mutex and abort the uplink
-        Serial.println("Failed to send exclusive uplink, previous uplink still processing");
+        DEBUG_PRINT("Failed to send exclusive uplink, previous uplink still processing");
         return;
     }
-    uplink_target_device = target_device;
+    downlink_target_device = target_device;
     xSemaphoreGive(downlinkSemaphore);
     xSemaphoreGive(exclusive_uplink_mutex);
 }
@@ -84,7 +82,7 @@ void RoomInterface::downlinkNow(char* target_device) {
  * @noreturn
  */
 [[noreturn]] void RoomInterface::interfaceLoop(void *pvParameters) {
-    Serial.println("Starting Room Interface Loop");
+    DEBUG_PRINT("Starting Room Interface Loop");
     auto* roomInterface = static_cast<RoomInterface*>(pvParameters);
     // roomInterface->lastWakeTime = xTaskGetTickCount();
     roomInterface->startDeviceLoops();
@@ -103,7 +101,7 @@ void RoomInterface::downlinkNow(char* target_device) {
  * @param pvParameters The RoomInterface instance.
  */
 [[noreturn]] void RoomInterface::eventLoop(void *pvParameters) {
-    Serial.println("Starting Event Loop");
+    DEBUG_PRINT("Starting Event Loop");
     auto* roomInterface = static_cast<RoomInterface*>(pvParameters);
     while (true) {
         // Check the uplink queue for new events.
@@ -125,9 +123,9 @@ void RoomInterface::sendEvent(ParsedEvent_t* event) const {
     // return;
     auto document = event->document;
     const auto root = document.to<JsonObject>();
-    root["name"] = "RoomDevice";
     root["object"] = event->objectName;
     root["event"] = event->eventName;
+    root["type"] = "event"; // This is an event message
     root["args"] = JsonArray();
     for (int i = 0; i < event->numArgs; i++) {
         switch (event->args[i].type) {
@@ -152,7 +150,7 @@ void RoomInterface::sendEvent(ParsedEvent_t* event) const {
     char buffer[512] = {0};
     const auto serialized = serializeJson(document, &buffer, sizeof(buffer));
     // Queue the message to be sent to CENTRAL
-    networkInterface->queue_message(NetworkInterface::EVENT, buffer, serialized);
+    networkInterface->queue_message(buffer, serialized);
     cleanup_scratch_space(event);
 }
 
@@ -172,7 +170,7 @@ ParsedEvent_t* RoomInterface::eventParse(const char* data) {
     this->last_event_parse = xTaskGetTickCount();
     auto* working_space = get_free_scratch_space();
     if (working_space == nullptr) {
-        Serial.println("Failed to get scratch space for event");
+        DEBUG_PRINT("Failed to get scratch space for event");
         return nullptr;
     }
     working_space->finished = false;
@@ -180,8 +178,7 @@ ParsedEvent_t* RoomInterface::eventParse(const char* data) {
     event_document.clear();
     const DeserializationError error = deserializeJson(event_document, data);
     if (error) {
-        Serial.print(F("deserializeJson() failed: "));
-        Serial.println(error.c_str());
+        DEBUG_PRINT("deserializeJson() failed: %s", error.c_str());
         return nullptr;
     }
     const auto root = event_document.as<JsonObject>();
@@ -207,7 +204,7 @@ ParsedEvent_t* RoomInterface::eventParse(const char* data) {
                 write_string_to_scratch_space(arg.as<const char*>(), working_space);
             working_space->args[working_space->numArgs].type = ParsedArg::STRING;
         } else {
-            Serial.println("Unknown arg type in event, aborting");
+            DEBUG_PRINT("Unknown arg type in event, aborting");
             return nullptr;
         }
         working_space->numArgs++;
@@ -216,7 +213,7 @@ ParsedEvent_t* RoomInterface::eventParse(const char* data) {
 }
 
 void RoomInterface::eventExecute(ParsedEvent_t* event) const {
-    Serial.printf("Executing Event: %s\n", event->eventName);
+    DEBUG_PRINT("Executing Event: %s\n", event->eventName);
     for (auto current = devices; current != nullptr; current = current->next) {
         // Serial.printf("Checking Device: %s : %s\n", current->device->getObjectName(), event->objectName);
         if (strcmp(current->device->getObjectName(), event->objectName) == 0) {
@@ -230,11 +227,11 @@ void RoomInterface::eventExecute(ParsedEvent_t* event) const {
 }
 
 [[noreturn]] void RoomInterface::interfaceHealthCheck(void* pvParameters) {
-    auto* roomInterface = static_cast<RoomInterface*>(pvParameters);
+    const auto* roomInterface = static_cast<RoomInterface*>(pvParameters);
     while (true) {
         // Check if the last event parse was more than 2 minutes ago.
         if (xTaskGetTickCount() - roomInterface->last_event_parse > 120000) {
-            Serial.println("Event Parse Timeout");
+            DEBUG_PRINT("Event Parse Timeout");
             esp_restart();
         }
         esp_task_wdt_reset();
