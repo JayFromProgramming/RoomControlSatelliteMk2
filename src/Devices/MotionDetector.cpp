@@ -61,8 +61,8 @@ JsonVariant MotionDetector::getDeviceData() {
     deviceData["health"]["online"] = true;
     deviceData["health"]["fault"] = false;
     deviceData["health"]["reason"] = "";
-    deviceData["data"]["motion_detected"] = motionDetected;
-    deviceData["data"]["last_motion_time"] = lastMotionTime;
+    deviceData["state"]["motion_detected"] = motionDetected;
+    deviceData["state"]["last_motion_time"] = lastMotionTime;
     return deviceData;
 }
 

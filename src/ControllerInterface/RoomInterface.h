@@ -41,7 +41,7 @@ private:
     JsonDocument uplink_document = JsonDocument();
 
     mutable TickType_t lastWakeTime;
-    const TickType_t loopInterval = 30000 / portTICK_PERIOD_MS;  // Wake to send the status update every 30 seconds
+    const TickType_t loopInterval = 15000 / portTICK_PERIOD_MS;  // Wake to send the status update every 30 seconds
 
     struct DeviceList {
         RoomDevice* device;

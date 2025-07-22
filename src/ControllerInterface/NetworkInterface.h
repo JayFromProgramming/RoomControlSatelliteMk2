@@ -25,11 +25,6 @@ public:
         LINK_OK          // All connections are up
     } network_state_t;
 
-    enum target_endpoint {
-        DOWNLINK,
-        EVENT
-    };
-
     typedef enum {
         SLOT_FREE,
         MESSAGE_PENDING,
@@ -39,7 +34,6 @@ public:
 
     typedef struct {
         SemaphoreHandle_t mutex; // Release this mutex after processing the message
-        target_endpoint endpoint;
         char data[1024];
         size_t length;
         uint32_t timestamp;

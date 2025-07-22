@@ -139,16 +139,15 @@ void NetworkInterface::flush_downlink_queue() {
             const uint32_t queue_time = micros() - message.timestamp;
             // Init a timer to keep track of how long it takes to send a message
             const uint32_t start_time = micros();
-            message.data[message.length] = '\0'; // Bell-terminate the message data
-            const auto wrote = datalink_client->write(message.data, message.length + 1); // +1 for the bell termination
-            if (wrote != message.length + 1) {
+            const auto wrote = datalink_client->write(message.data, message.length);
+            datalink_client->write("\0", 1); // Write a null terminator to indicate end of message
+            if (wrote != message.length ) {
                 DEBUG_PRINT("Failed to write downlink message, wrote %d != %d bytes",
-                               wrote, message.length);
+                               wrote, message.length + 1);
                 analogWrite(ACTIVITY_LED, 0);
                 continue; // Skip this message if we can't write it
             }
-            DEBUG_PRINT("%s sent [%d bytes] in %dus [%.03f KB/s] [Queue Time: %.02fms]",
-                message.endpoint == EVENT ? "Event " : "Uplink",
+            DEBUG_PRINT("Downlink sent [%d bytes] in %dus [%.03f KB/s] [Queue Time: %.02fms]",
                 message.length,
                 micros() - start_time,
                 message.length / ((micros() - start_time) / 1000000.0f) / 1024.0f,

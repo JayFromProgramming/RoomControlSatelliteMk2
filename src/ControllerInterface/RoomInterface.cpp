@@ -48,7 +48,7 @@ void RoomInterface::sendDownlink() {
     const auto root = payload.to<JsonObject>();
     root["current_ip"] = WiFi.localIP().toString();
     root["objects"] = JsonObject();
-    root["type"] = "downlink"; // This is a downlink message
+    root["msg_type"] = "state_update"; // This is a downlink message
     for (auto current = devices; current != nullptr; current = current->next) {
         if (downlink_target_device != nullptr && // If exclusive downlink is requested, only send the target device
             strcmp(current->device->getObjectName(), downlink_target_device) != 0) {
@@ -111,7 +111,7 @@ void RoomInterface::downlinkNow(char* target_device) {
     while (true) {
         roomInterface->sendDownlink();
         // This will either block until the semaphore is given or timeout after the loopInterval and send the uplink.
-        if (millis() - roomInterface->last_full_send > 30000) roomInterface->sendDownlink();
+        if (millis() - roomInterface->last_full_send > 15000) roomInterface->sendDownlink();
         xSemaphoreTake(roomInterface->downlinkSemaphore, roomInterface->loopInterval);
     }
 }
@@ -148,7 +148,7 @@ void RoomInterface::sendEvent(ParsedEvent_t* event) const {
     const auto root = document.to<JsonObject>();
     root["object"] = event->objectName;
     root["event"] = event->eventName;
-    root["type"] = "event"; // This is an event message
+    root["msg_type"] = "event"; // This is an event message
     root["args"] = JsonArray();
     for (int i = 0; i < event->numArgs; i++) {
         switch (event->args[i].type) {
