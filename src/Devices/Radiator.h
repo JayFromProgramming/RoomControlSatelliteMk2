@@ -49,16 +49,12 @@ public:
     const char* object_type = "Radiator";
     boolean on = false;
 
-    const char* getObjectName() const override {
-        return object_name;
-    }
-
-    const char* getObjectType() const override {
-        return object_type;
-    }
-
     char* getObjectName() override {
         return const_cast<char *>(object_name);
+    }
+
+    char* getObjectType() override {
+        return const_cast<char *>(object_type);
     }
 
     Radiator();

@@ -19,6 +19,8 @@ class RoomInterface;
 class RoomDevice {
 
 public:
+    virtual ~RoomDevice() = default;
+
     const char* object_type;
     const char* object_name;
 

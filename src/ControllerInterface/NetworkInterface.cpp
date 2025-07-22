@@ -17,7 +17,7 @@ void NetworkInterface::begin(const char* device_info, const size_t device_info_l
     // Setup wifi client
     this->datalink_client = new WiFiClient();
     // Initialize the tcp/ip connection to the server
-    this->datalink_client->setTimeout(1000); // Set a timeout for the connection
+    this->datalink_client->setTimeout(30); // Set a timeout for the connection
     // this->datalink_client->setNoDelay(true); // Disable Nagle's algorithm for low latency
     this->establish_connection();
     xTaskCreate(NetworkInterface::poll_uplink_buffer,
@@ -40,7 +40,7 @@ void NetworkInterface::establish_connection() {
         }
         break; // Connection successful
     }
-    DEBUG_PRINT("Connected to %s:%d sending device information...", CENTRAL_HOST, CENTRAL_PORT);
+    DEBUG_PRINT("Connected to %s:%d, sending device information...", CENTRAL_HOST, CENTRAL_PORT);
     device_info[device_info_length + 1] = '\0'; // Ensure the last byte is a null terminated
     const auto wrote = this->datalink_client->write(device_info, device_info_length + 1); // +1 for the null terminator
     if (wrote != device_info_length + 1) {
@@ -88,34 +88,28 @@ void NetworkInterface::poll_uplink_buffer(void *pvParameters) {
         // Check if there is data to read from the WebSocket client
         const auto read = network_interface->datalink_client->readBytesUntil('\0', buffer, sizeof(buffer) - 1);
         if (read > 0) {
-            // Handle the received data
-            network_interface->handle_uplink_data(buffer, read);
-        } else if (read == 0) {
-            DEBUG_PRINT("Error reading from WebSocket client: %d", read);
+            buffer[read] = '\0'; // Null-terminate the buffer
+            network_interface->handle_uplink_data(buffer, read + 1);
         }
     }
 }
 
 /**
  * This event handler is called when the WebSocket client receives data from the server.
- * @param handler_args Pointer to the NetworkInterface instance that registered this handler.
- * @param base The event base, which can be assumed to be WEBSOCKET_EVENT_BASE.
- * @param event_id Can be assumed to be WEBSOCKET_EVENT_DATA
- * @param event_data Pointer to the event data, which is an esp_websocket_event_data_t structure.
  */
 void NetworkInterface::handle_uplink_data(uint8_t* data, const size_t length) {
     // Put the received data into a message structure
     uplink_message_t message;
     message.length = length;
     message.timestamp = millis();
+    memset(message.data, 0, sizeof(message.data)); // Clear the data buffer
     memcpy(message.data, data, length);
+
     // Send the message to the uplink queue
     const auto status = xQueueSend(this->uplink_queue, &message, 200);
     if (status != pdTRUE) {
         DEBUG_PRINT("Failed to move inbound message to uplink queue %s",
                        status == errQUEUE_FULL ? "Queue is full" : "Unknown error");
-    } else {
-        DEBUG_PRINT("Received uplink message [%d bytes]: %s\n", message.length, message.data);
     }
 }
 
@@ -148,17 +142,17 @@ void NetworkInterface::flush_downlink_queue() {
             message.data[message.length] = '\0'; // Bell-terminate the message data
             const auto wrote = datalink_client->write(message.data, message.length + 1); // +1 for the bell termination
             if (wrote != message.length + 1) {
-                DEBUG_PRINT("Failed to write downlink message, wrote %d < %d bytes",
+                DEBUG_PRINT("Failed to write downlink message, wrote %d != %d bytes",
                                wrote, message.length);
                 analogWrite(ACTIVITY_LED, 0);
                 continue; // Skip this message if we can't write it
             }
-            DEBUG_PRINT("%s sent [%d bytes] in %dus [%.02f bytes/s] [Queue Time: %dms]",
+            DEBUG_PRINT("%s sent [%d bytes] in %dus [%.03f KB/s] [Queue Time: %.02fms]",
                 message.endpoint == EVENT ? "Event " : "Uplink",
                 message.length,
                 micros() - start_time,
-                message.length / ((micros() - start_time) / 1000000.0f),
-                queue_time);
+                message.length / ((micros() - start_time) / 1000000.0f) / 1024.0f,
+                queue_time / 1000.0f);
             last_transmission = millis();
             analogWrite(ACTIVITY_LED, 0); // Turn off the activity LED to indicate no activity
             esp_task_wdt_reset();

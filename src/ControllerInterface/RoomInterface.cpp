@@ -129,6 +129,7 @@ void RoomInterface::downlinkNow(char* target_device) {
         // Check the uplink queue for new events.
         NetworkInterface::uplink_message_t message;
         if (xQueueReceive(roomInterface->networkInterface->uplink_queue, &message, 100) == pdTRUE) {
+            DEBUG_PRINT("Received Event: %s", message.data);
             // Parse the event data and execute the event.
             auto* parsed = roomInterface->eventParse(message.data);
             if (parsed != nullptr) roomInterface->eventExecute(parsed);
@@ -204,8 +205,8 @@ ParsedEvent_t* RoomInterface::eventParse(const char* data) {
         return nullptr;
     }
     const auto root = event_document.as<JsonObject>();
-    char* object_ptr = write_string_to_scratch_space(root["object"], working_space);
-    char* event_ptr = write_string_to_scratch_space(root["event"], working_space);
+    char* object_ptr = write_string_to_scratch_space(root["sub_device_id"], working_space);
+    char* event_ptr = write_string_to_scratch_space(root["event_name"], working_space);
     working_space->objectName = object_ptr;
     working_space->eventName = event_ptr;
     // Parse the args array.

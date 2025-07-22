@@ -10,7 +10,7 @@
 #include <Wire.h>
 
 
-class EnvironmentSensor : public RoomDevice {
+class EnvironmentSensor final : public RoomDevice {
 
 public:
 
@@ -33,16 +33,12 @@ public:
 
     JsonVariant getDeviceData() override;
 
-    char const *getObjectName() const override {
-        return object_name;
-    }
-
-    char const *getObjectType() const override {
-        return object_type;
-    }
-
     char* getObjectName() override {
         return const_cast<char *>(object_name);
+    }
+
+    char* getObjectType() override {
+        return const_cast<char *>(object_type);
     }
 
 };
