@@ -34,21 +34,13 @@ public:
 
     typedef struct {
         SemaphoreHandle_t mutex; // Release this mutex after processing the message
-        char data[1024];
+        char data[4096];
         size_t length;
         uint32_t timestamp;
     } downlink_message_t;
 
-    struct UplinkDataStruct {
-        char* payload;
-        SemaphoreHandle_t mutex; // The mutex is locked when a new uplink is being generated
-        size_t length;
-    };
-
-    UplinkDataStruct* uplinkData;
-
     typedef struct {
-        char data[512];
+        char data[4096];
         size_t length;
         uint32_t timestamp;
     } uplink_message_t;
@@ -63,18 +55,14 @@ private:
     network_state_t last_state = WIRELESS_DOWN;
 
     TaskHandle_t uplink_task_handle = nullptr;
-
-    struct body_data_t {
-        uint8_t data[1024];
-        size_t length;
-    };
+    TaskHandle_t downlink_task_handle = nullptr;
 
     QueueHandle_t downlink_queue;
 
     static void poll_uplink_buffer(void *pvParameters);
 
     void flush_downlink_queue();
-    void handle_uplink_data(uint8_t* data, const size_t length);
+    void handle_uplink_data(const uint8_t* data, const size_t length) const;
 
     WiFiClient* datalink_client;
     uint32_t last_connection_attempt = 0;
@@ -87,15 +75,11 @@ public:
         pinMode(ACTIVITY_LED, OUTPUT);
     }
 
-    static void network_task(void *pvParameters);
+    static void downlink_task(void *pvParameters);
 
     void begin(const char* device_info, const size_t device_info_length);
 
     void establish_connection();
-
-    void pass_uplink_data(UplinkDataStruct* data) {
-        this->uplinkData = data;
-    }
 
     void queue_message(const char *data, size_t length) const;
 

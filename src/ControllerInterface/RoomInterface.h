@@ -54,12 +54,14 @@ private:
         const char* name;
     };
 
+    TaskHandle_t roomInterfaceTaskHandle = nullptr;
+    TaskHandle_t eventLoopTaskHandle = nullptr;
+    TaskHandle_t interfaceHealthCheckTaskHandle = nullptr;
+
     char* uplink_buffer = new char[1024];
     uint32_t last_full_send;
     NetworkInterface* networkInterface = new NetworkInterface();
-    NetworkInterface::UplinkDataStruct* uplinkData = new NetworkInterface::UplinkDataStruct();
     DeviceList* devices = nullptr;
-    SystemTasks* system_tasks = new SystemTasks[4];
     SemaphoreHandle_t downlinkSemaphore = xSemaphoreCreateBinary();
     SemaphoreHandle_t exclusive_uplink_mutex = xSemaphoreCreateMutex();
     TickType_t last_event_parse;
@@ -76,10 +78,6 @@ public:
     void begin() {
         DEBUG_PRINT("Initializing Room Interface");
         // The network interface runs on Core 0
-        uplinkData->payload = uplink_buffer;
-        uplinkData->length = 0;
-        uplinkData->mutex = xSemaphoreCreateMutex(); // The mutex is locked when accessing the uplink data
-        networkInterface->pass_uplink_data(uplinkData);
         char info_buffer[1024] = {0};
         const auto info_size = getDeviceInfo(info_buffer);
         networkInterface->begin(info_buffer, info_size);
@@ -89,41 +87,27 @@ public:
         xTaskCreate(
             RoomInterface::interfaceLoop,
             "interfaceLoop",
-            10000,
+            20000,
             const_cast<RoomInterface*>(this),
             2,
-            &system_tasks[0].handle
+            &roomInterfaceTaskHandle
         );
-        // esp_task_wdt_add(system_tasks[0].handle);
-        xTaskCreatePinnedToCore(
-            NetworkInterface::network_task,
-            "networkTask",
-            10000,
-            networkInterface,
-            1,
-            &system_tasks[1].handle,
-            0
-        );
-        esp_task_wdt_add(system_tasks[1].handle);
-        xTaskCreatePinnedToCore(
-            eventLoop,
+        xTaskCreate(
+            RoomInterface::eventLoop,
             "eventLoop",
             20000,
             const_cast<RoomInterface*>(this),
             2,
-            &system_tasks[2].handle,
-            1
+            &eventLoopTaskHandle
         );
-        esp_task_wdt_add(system_tasks[2].handle);
         xTaskCreate(
-            interfaceHealthCheck,
+            RoomInterface::interfaceHealthCheck,
             "interfaceHealthCheck",
-            10000,
+            4096,
             const_cast<RoomInterface*>(this),
             0,
-            &system_tasks[3].handle
+            &interfaceHealthCheckTaskHandle
         );
-        esp_task_wdt_add(system_tasks[3].handle);
         startDeviceLoops();
         DEBUG_PRINT("Room Interface Initialized");
     }

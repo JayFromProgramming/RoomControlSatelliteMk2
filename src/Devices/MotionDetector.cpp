@@ -56,8 +56,6 @@ void MotionDetector::startTask(TaskHandle_t *taskHandle) {
 }
 
 JsonVariant MotionDetector::getDeviceData() {
-    // deviceData["name"] = getObjectName();
-    deviceData["type"] = getObjectType();
     deviceData["health"]["online"] = true;
     deviceData["health"]["fault"] = false;
     deviceData["health"]["reason"] = "";

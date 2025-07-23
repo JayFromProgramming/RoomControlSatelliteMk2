@@ -62,9 +62,9 @@ void RoomInterface::sendDownlink() {
     if (downlink_target_device == nullptr) last_full_send = millis(); // Update the last full send time
     downlink_target_device = nullptr; // Reset the exclusive downlink target device
     // Serialize the json data.
-    char buffer[1024] = {0};
+    char buffer[4096] = {0};
     xSemaphoreTake(uplinkData->mutex, portMAX_DELAY); // Lock the downlink data mutex to write the payload
-    memset(uplinkData->payload, 0, 1024); // Clear the downlink buffer
+    memset(uplinkData->payload, 0, 4096); // Clear the downlink buffer
     const auto serialized = serializeJson(payload, &buffer, sizeof(buffer));
     memcpy(uplinkData->payload, buffer, serialized); // Copy the serialized data to the downlink buffer
     uplinkData->length = serialized;
@@ -170,7 +170,7 @@ void RoomInterface::sendEvent(ParsedEvent_t* event) const {
     // Implement the kwargs object later.
     root["kwargs"] = JsonObject();
     // Serialize the json data.
-    char buffer[512] = {0};
+    char buffer[4096] = {0};
     const auto serialized = serializeJson(document, &buffer, sizeof(buffer));
     // Queue the message to be sent to CENTRAL
     networkInterface->queue_message(buffer, serialized);
@@ -264,29 +264,30 @@ void RoomInterface::eventExecute(ParsedEvent_t* event) const {
 
 
 RoomInterface::TaskPile RoomInterface::getAllTaskHandles() const {
-    auto pile = TaskPile();
-    auto* taskHandles = new TaskHandle_t*[getDeviceCount() + 3];
-    pile.names = new const char*[getDeviceCount() + 3];
-    int i = 0;
-    // Add the network task handle.
-    taskHandles[i] = &system_tasks[0].handle;
-    pile.names[i++] = "RoomInterface";
-    taskHandles[i] = &system_tasks[1].handle;
-    pile.names[i++] = "NetworkInterface";
-    taskHandles[i] = &system_tasks[2].handle;
-    pile.names[i++] = "EventLoop";
-    for (auto current = devices; current != nullptr; current = current->next) {
-        if (current->taskHandle == nullptr) {
-            continue;
-        }
-        taskHandles[i] = &current->taskHandle;
-        pile.names[i] = current->device->getObjectName();
-        // pile.names[i] = "Unimplemented";
-        i++;
-    }
-    pile.handles = taskHandles;
-    pile.count = i;
-    return pile;
+    // auto pile = TaskPile();
+    // auto* taskHandles = new TaskHandle_t*[getDeviceCount() + 3];
+    // pile.names = new const char*[getDeviceCount() + 3];
+    // int i = 0;
+    // // Add the network task handle.
+    // taskHandles[i] = &system_tasks[0].handle;
+    // pile.names[i++] = "RoomInterface";
+    // taskHandles[i] = &system_tasks[1].handle;
+    // // pile.names[i++] = "NetworkInterface";
+    // // taskHandles[i] = &system_tasks[2].handle;
+    // pile.names[i++] = "EventLoop";
+    // for (auto current = devices; current != nullptr; current = current->next) {
+    //     if (current->taskHandle == nullptr) {
+    //         continue;
+    //     }
+    //     taskHandles[i] = &current->taskHandle;
+    //     pile.names[i] = current->device->getObjectName();
+    //     // pile.names[i] = "Unimplemented";
+    //     i++;
+    // }
+    // pile.handles = taskHandles;
+    // pile.count = i;
+    // return pile;
+    return TaskPile();
 }
 
 

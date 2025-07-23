@@ -178,8 +178,6 @@ const char* Radiator::getStateString() const {
 
 JsonVariant Radiator::getDeviceData(){
     // Update the device data with the current state of the device.
-    // deviceData["name"] = getObjectName();
-    deviceData["type"] = getObjectType();
     deviceData["state"]["on"] = on;
     deviceData["state"]["radiator_temp"] = radiator_temp;
     deviceData["state"]["state"] = getStateString();
@@ -187,6 +185,7 @@ JsonVariant Radiator::getDeviceData(){
     // If the heartbeat is expired, set fault and reason.
     deviceData["health"]["fault"] = heartbeat_expired;
     deviceData["health"]["reason"] = heartbeat_expired ? "Heartbeat expired" : "";
+    deviceData["info"]["last_heartbeat"] = lastHeartbeat;
     return deviceData;
 }
 

@@ -23,16 +23,13 @@ void RoomDevice::uplinkNow() {
     MainRoomInterface.downlinkNow(this->getObjectName());
 }
 
-// const char RoomDevice::object_type[] = "RoomDevice";
-
 RoomDevice::RoomDevice() {
     MainRoomInterface.addDevice(this);
-    // deviceData["name"] = nullptr;
-    deviceData["data"] = JsonObject();
-    deviceData["data"] = JsonObject();
+    deviceData["state"] = JsonObject();
+    deviceData["actions"] = JsonObject();
     deviceData["info"] = JsonObject();
     deviceData["health"] = JsonObject();
-    deviceData["type"] = nullptr;
+    deviceData["actions"] = JsonArray();
 }
 
 JsonVariant RoomDevice::getDeviceData() {

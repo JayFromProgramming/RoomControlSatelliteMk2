@@ -49,10 +49,9 @@ float_t EnvironmentSensor::celsiusToFahrenheit(float_t celsius_value) {
 }
 
 JsonVariant EnvironmentSensor::getDeviceData() {
-    deviceData["type"] = getObjectType();
 
     deviceData["state"]["temperature"] = temperature;
-    deviceData["state"]["humidity"] = humidity;
+    deviceData["state"]["humidity"]    = humidity;
 
     if (!this->aht20.isConnected()) {
         deviceData["health"]["online"] = false;

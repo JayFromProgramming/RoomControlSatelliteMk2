@@ -82,7 +82,7 @@ void setup() {
     // Set the time using the NTP protocol
     configTime(0, 0, "time.mtu.edu", "pool.ntp.org", "time.nist.gov");
     radiator = new Radiator();
-    motionDetector = new MotionDetector();
+    // motionDetector = new MotionDetector();
     environmentSensor = new EnvironmentSensor();
     // delay(1000);
     DEBUG_PRINT("Starting up all Tasks...");

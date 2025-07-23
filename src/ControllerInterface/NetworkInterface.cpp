@@ -13,19 +13,37 @@ void NetworkInterface::begin(const char* device_info, const size_t device_info_l
     this->device_info_length = device_info_length;
     // The network interface runs on Core 0
     this->downlink_queue = xQueueCreate(10, sizeof(downlink_message_t));
+    if (this->downlink_queue == nullptr) {
+        DEBUG_PRINT("Failed to create downlink queue");
+        return;
+    }
     this->uplink_queue = xQueueCreate(10, sizeof(uplink_message_t));
+    if (this->uplink_queue == nullptr) {
+        DEBUG_PRINT("Failed to create uplink queue");
+        vQueueDelete(this->downlink_queue);
+        return;
+    }
     // Setup wifi client
     this->datalink_client = new WiFiClient();
     // Initialize the tcp/ip connection to the server
     this->datalink_client->setTimeout(30); // Set a timeout for the connection
     // this->datalink_client->setNoDelay(true); // Disable Nagle's algorithm for low latency
     this->establish_connection();
+    // esp_task_wdt_add(system_tasks[0].handle);
+    xTaskCreate(NetworkInterface::downlink_task,
+        "NetworkInterface::downlink_task",
+        20000,
+        this,
+        1,
+        &this->downlink_task_handle
+    );
     xTaskCreate(NetworkInterface::poll_uplink_buffer,
-                 "NetworkInterface::poll_uplink_buffer",
-                 4096,
-                 this,
-                 1,
-                 &this->uplink_task_handle);
+        "NetworkInterface::poll_uplink_buffer",
+        10000,
+        this,
+        1,
+        &this->uplink_task_handle
+    );
     DEBUG_PRINT("Network interface initialized successfully");
 }
 
@@ -51,7 +69,8 @@ void NetworkInterface::establish_connection() {
     DEBUG_PRINT("Device information sent successfully [%d bytes]", wrote);
 }
 
-[[noreturn]] void NetworkInterface::network_task(void *pvParameters) {
+[[noreturn]] void NetworkInterface::downlink_task(void *pvParameters) {
+    DEBUG_PING("Starting Downlink Task");
     auto *network_interface = static_cast<NetworkInterface *>(pvParameters);
     while (true) {
         network_interface->last_connection_attempt = millis();
@@ -69,18 +88,10 @@ void NetworkInterface::establish_connection() {
     }
 }
 
-void NetworkInterface::queue_message(const char *data, const size_t length) const {
-    downlink_message_t message;
-    memcpy(message.data, data, length);
-    message.length = length;
-    message.timestamp = micros();
-    xQueueSend(downlink_queue, &message, 10000);
-}
-
-void NetworkInterface::poll_uplink_buffer(void *pvParameters) {
-    DEBUG_PRINT("Starting Uplink Polling Task");
-    auto *network_interface = static_cast<NetworkInterface *>(pvParameters);
-    uint8_t buffer[1024];
+[[noreturn]] void NetworkInterface::poll_uplink_buffer(void *pvParameters) {
+    DEBUG_PRINT("Starting Uplink Task");
+    const auto *network_interface = static_cast<NetworkInterface *>(pvParameters);
+    uint8_t buffer[4096] = {0}; // Buffer to hold incoming data
     while (true) {
         if (!network_interface->datalink_client->connected()) {
             vTaskDelay(5000);
@@ -94,10 +105,23 @@ void NetworkInterface::poll_uplink_buffer(void *pvParameters) {
     }
 }
 
+void NetworkInterface::queue_message(const char *data, const size_t length) const {
+    downlink_message_t message;
+    memcpy(message.data, data, length);
+    message.length = length;
+    message.timestamp = micros();
+    if (downlink_queue == nullptr) {
+        DEBUG_PRINT("Downlink queue is not initialized, cannot send message");
+        return;
+    }
+
+    xQueueSend(downlink_queue, &message, 10000);
+}
+
 /**
  * This event handler is called when the WebSocket client receives data from the server.
  */
-void NetworkInterface::handle_uplink_data(uint8_t* data, const size_t length) {
+void NetworkInterface::handle_uplink_data(const uint8_t* data, const size_t length) const {
     // Put the received data into a message structure
     uplink_message_t message;
     message.length = length;
@@ -120,6 +144,10 @@ void NetworkInterface::handle_uplink_data(uint8_t* data, const size_t length) {
 void NetworkInterface::flush_downlink_queue() {
     downlink_message_t message;
     while (true) {
+        if (this->downlink_queue == nullptr) {
+            DEBUG_PRINT("Downlink queue is not initialized, cannot flush");
+            return;
+        }
         if (xQueueReceive(downlink_queue, &message, 0) == pdTRUE) {
             analogWrite(ACTIVITY_LED, 32);
             if (WiFi.status() != WL_CONNECTED) {
