@@ -9,7 +9,7 @@
 
 #define MOTION_DETECTOR_PIN 17
 
-class MotionDetector : public RoomDevice {
+class MotionDetector final : public RoomDevice {
 
 public:
 
@@ -18,16 +18,12 @@ public:
     boolean motionDetected = false;
     time_t lastMotionTime = 0;
 
-    const char* getObjectName() const override {
-        return object_name;
-    }
-
-    const char* getObjectType() const override {
-        return object_type;
-    }
-
     char* getObjectName() override {
         return const_cast<char *>(object_name);
+    }
+
+    char* getObjectType() override {
+        return const_cast<char *>(object_type);
     }
 
     MotionDetector();

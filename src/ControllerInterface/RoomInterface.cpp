@@ -3,7 +3,7 @@
 //
 
 #include "RoomInterface.h"
-
+#include "build_info.h"
 class RoomDevice;
 
 // Instantiate the singleton instance of the RoomInterface
@@ -13,6 +13,7 @@ size_t RoomInterface::getDeviceInfo(char* buffer) const {
     auto payload = JsonDocument();
     const auto root = payload.to<JsonObject>();
     root["name"] = "TestingDevice"; // Placeholder for the device name
+    root["version"] = BUILD_VERSION; // Use the build version from the build_info.h
     root["msg_type"] = "device_info"; // This is a device info message
     root["sub_device_count"] = getDeviceCount();
     root["sub_devices"] = JsonObject();
@@ -63,12 +64,8 @@ void RoomInterface::sendDownlink() {
     downlink_target_device = nullptr; // Reset the exclusive downlink target device
     // Serialize the json data.
     char buffer[4096] = {0};
-    xSemaphoreTake(uplinkData->mutex, portMAX_DELAY); // Lock the downlink data mutex to write the payload
-    memset(uplinkData->payload, 0, 4096); // Clear the downlink buffer
     const auto serialized = serializeJson(payload, &buffer, sizeof(buffer));
-    memcpy(uplinkData->payload, buffer, serialized); // Copy the serialized data to the downlink buffer
-    uplinkData->length = serialized;
-    xSemaphoreGive(uplinkData->mutex); // Unlock the downlink data mutex
+    memcpy(uplink_buffer, buffer, serialized); // Copy the serialized data to the uplink buffer
     // Queue the message to be sent to CENTRAL
     networkInterface->queue_message(buffer, serialized);
 }

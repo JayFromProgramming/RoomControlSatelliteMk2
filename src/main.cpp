@@ -60,8 +60,7 @@ void current_time(char* buffer) {
     strftime(buffer, 80, "%m/%d/%Y %H:%M:%S", &timeinfo);
 }
 
-void setup() {
-    Serial.begin(115200); // Initialize serial communication at 115200 baud rate
+void connect_wifi() {
     DEBUG_PRINT("Starting WiFi...");
     WiFi.mode(WIFI_MODE_STA);  // Setup wifi to connect to an access point
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD); // Pass the SSID and Password to the WiFi.begin function
@@ -71,18 +70,23 @@ void setup() {
     DEBUG_PRINT("Attempting to connect to WiFi SSID: \"%s\" with Password: \"%s\"", WIFI_SSID, WIFI_PASSWORD);
     auto wifi_status = WiFi.waitForConnectResult();
     if (wifi_status != WL_CONNECTED) {
-        DEBUG_PRINT("WiFi failed to connect [%s], restarting...", wifi_status_to_string(static_cast<wl_status_t>(wifi_status)));
+        DEBUG_PRINT("WiFi failed to connect [%s], attempting again...", wifi_status_to_string(static_cast<wl_status_t>(wifi_status)));
         vTaskDelay(5000);
-        esp_restart();
+        connect_wifi(); // Retry connecting to WiFi
         return;
     }
     DEBUG_PRINT("WiFi connected [%s] with IP: %s",
         wifi_status_to_string(static_cast<wl_status_t>(wifi_status)),
         WiFi.localIP().toString().c_str());
+}
+
+void setup() {
+    Serial.begin(115200); // Initialize serial communication at 115200 baud rate
+    connect_wifi();
     // Set the time using the NTP protocol
     configTime(0, 0, "time.mtu.edu", "pool.ntp.org", "time.nist.gov");
     radiator = new Radiator();
-    // motionDetector = new MotionDetector();
+    motionDetector = new MotionDetector();
     environmentSensor = new EnvironmentSensor();
     // delay(1000);
     DEBUG_PRINT("Starting up all Tasks...");

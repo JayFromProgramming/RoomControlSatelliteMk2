@@ -30,7 +30,7 @@ Radiator::Radiator() {
         const auto radiator = static_cast<Radiator*>(self);
         radiator->updateRadiatorTemp(data->args[0].value.floatVal);
     });
-
+    deviceData["actions"][0] = "on";
 }
 
 void Radiator::startTask(TaskHandle_t* taskHandle) {

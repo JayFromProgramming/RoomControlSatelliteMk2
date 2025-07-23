@@ -8,6 +8,7 @@
 EnvironmentSensor::EnvironmentSensor() {
     Wire.begin();
     aht20.begin();
+    deviceData["actions"] = JsonArray();
 }
 
 void EnvironmentSensor::startTask(TaskHandle_t* taskHandle) {
@@ -15,15 +16,15 @@ void EnvironmentSensor::startTask(TaskHandle_t* taskHandle) {
         "EnvironmentSensor", STACK_SIZE, this, PRIORITY, taskHandle);
 }
 
-float_t EnvironmentSensor::celsiusToFahrenheit(float_t celsius_value) {
-    return (celsius_value * (9.f / 5.f)) + 32;
+float_t EnvironmentSensor::celsiusToFahrenheit(const float_t celsius) {
+    return (celsius * (9.f / 5.f)) + 32;
 }
 
 [[noreturn]] void EnvironmentSensor::RTOSLoop(void* pvParameters) {
     auto* self = static_cast<EnvironmentSensor *>(pvParameters);
     TickType_t xLastWakeTime = xTaskGetTickCount();
     for (;;) {
-        if (self->aht20.available() && self->aht20.isConnected()) {
+        if (self->aht20.isConnected() && self->aht20.available()) {
             const bool first_read = self->temperature == 0 && self->humidity == 0;
             self->temperature = celsiusToFahrenheit(self->aht20.getTemperature());
             self->humidity = self->aht20.getHumidity();

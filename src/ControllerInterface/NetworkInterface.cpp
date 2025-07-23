@@ -84,7 +84,6 @@ void NetworkInterface::establish_connection() {
                 break;
         }
         esp_task_wdt_reset();
-        vTaskDelay(100);
     }
 }
 
@@ -114,7 +113,6 @@ void NetworkInterface::queue_message(const char *data, const size_t length) cons
         DEBUG_PRINT("Downlink queue is not initialized, cannot send message");
         return;
     }
-
     xQueueSend(downlink_queue, &message, 10000);
 }
 
@@ -137,7 +135,6 @@ void NetworkInterface::handle_uplink_data(const uint8_t* data, const size_t leng
     }
 }
 
-
 /**
  *
  */
@@ -148,7 +145,7 @@ void NetworkInterface::flush_downlink_queue() {
             DEBUG_PRINT("Downlink queue is not initialized, cannot flush");
             return;
         }
-        if (xQueueReceive(downlink_queue, &message, 0) == pdTRUE) {
+        if (xQueueReceive(downlink_queue, &message, 100) == pdTRUE) {
             analogWrite(ACTIVITY_LED, 32);
             if (WiFi.status() != WL_CONNECTED) {
                 DEBUG_PRINT("WiFi is not connected, skipping message");
