@@ -35,7 +35,7 @@ private:
     // Setup scratch space for storing the parsed arguments for multiple events so we don't have to malloc/free
     // every time we parse an event.
 
-    ParsedEvent_t argumentScratchSpace[10] = {};
+    ParsedEvent_t argumentScratchSpace[4] = {};
 
     JsonDocument event_document = JsonDocument();
     JsonDocument uplink_document = JsonDocument();
@@ -58,7 +58,7 @@ private:
     TaskHandle_t eventLoopTaskHandle = nullptr;
     TaskHandle_t interfaceHealthCheckTaskHandle = nullptr;
 
-    char* uplink_buffer = new char[1024];
+    char* info_buffer = new char[1024];
     uint32_t last_full_send;
     NetworkInterface* networkInterface = new NetworkInterface();
     DeviceList* devices = nullptr;
@@ -78,7 +78,6 @@ public:
     void begin() {
         DEBUG_PRINT("Initializing Room Interface");
         // The network interface runs on Core 0
-        char info_buffer[1024] = {0};
         const auto info_size = getDeviceInfo(info_buffer);
         networkInterface->begin(info_buffer, info_size);
         for (auto & i : argumentScratchSpace) {

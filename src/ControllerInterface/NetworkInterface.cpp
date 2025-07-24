@@ -83,6 +83,7 @@ void NetworkInterface::establish_connection() {
     uint8_t buffer[4096] = {0}; // Buffer to hold incoming data
     while (true) {
         if (!network_interface->datalink_client->connected()) {
+            esp_task_wdt_reset();
             vTaskDelay(5000);
         }
         // Check if there is data to read from the WebSocket client

@@ -48,7 +48,9 @@ void RoomInterface::startDeviceLoops() const {
 void RoomInterface::sendDownlink() {
     auto payload = JsonDocument();
     const auto root = payload.to<JsonObject>();
-    root["current_ip"] = WiFi.localIP().toString();
+    root["uptime"] = millis() / 1000; // Uptime in seconds
+    root["free_heap"] = esp_get_free_heap_size(); // Free heap size in bytes
+    root["mcu_temp"] = temperatureRead(); // MCU temperature in degrees Celsius
     root["objects"] = JsonObject();
     root["msg_type"] = "state_update"; // This is a downlink message
     for (auto current = devices; current != nullptr; current = current->next) {
@@ -66,9 +68,9 @@ void RoomInterface::sendDownlink() {
     // Serialize the json data.
     char buffer[4096] = {0};
     const auto serialized = serializeJson(payload, &buffer, sizeof(buffer));
-    memcpy(uplink_buffer, buffer, serialized); // Copy the serialized data to the uplink buffer
     // Queue the message to be sent to CENTRAL
     networkInterface->queue_message(buffer, serialized);
+    payload.clear();
 }
 
 /**
@@ -187,7 +189,6 @@ void RoomInterface::sendEvent(ParsedEvent_t* event) const {
  * @return
  */
 ParsedEvent_t* RoomInterface::eventParse(const char* data) {
-    // Serial.println("Parsing Event");
     this->last_event_parse = xTaskGetTickCount();
     auto* working_space = get_free_scratch_space();
     if (working_space == nullptr) {

@@ -97,7 +97,7 @@ void setup() {
     DEBUG_PRINT("Starting up all Tasks...");
     MainRoomInterface.begin();
     DEBUG_PRINT("Task startup complete.");
-    esp_task_wdt_init(15, true);
+    esp_task_wdt_init(20, true);
     DEBUG_PRINT("Remaining Free Heap: %d bytes", esp_get_free_heap_size());
 }
 
