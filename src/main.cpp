@@ -78,11 +78,16 @@ void connect_wifi() {
     DEBUG_PRINT("WiFi connected [%s] with IP: %s",
         wifi_status_to_string(static_cast<wl_status_t>(wifi_status)),
         WiFi.localIP().toString().c_str());
+
 }
 
 void setup() {
     Serial.begin(115200); // Initialize serial communication at 115200 baud rate
+    ledcSetup(LEDC_CHANNEL, LEDC_FREQUENCY_NO_WIFI, LEDC_TIMER);
+    ledcAttachPin(ACTIVITY_LED, LEDC_CHANNEL);
+    ledcWrite(LEDC_CHANNEL, 4096); // Turn off the activity LED initially
     connect_wifi();
+    ledcDetachPin(ACTIVITY_LED); // Detach the LED pin after connecting to WiFi
     // Set the time using the NTP protocol
     configTime(0, 0, "time.mtu.edu", "pool.ntp.org", "time.nist.gov");
     radiator = new Radiator();
@@ -92,7 +97,8 @@ void setup() {
     DEBUG_PRINT("Starting up all Tasks...");
     MainRoomInterface.begin();
     DEBUG_PRINT("Task startup complete.");
-    esp_task_wdt_init(10, true);
+    esp_task_wdt_init(15, true);
+    DEBUG_PRINT("Remaining Free Heap: %d bytes", esp_get_free_heap_size());
 }
 
 void loop() {

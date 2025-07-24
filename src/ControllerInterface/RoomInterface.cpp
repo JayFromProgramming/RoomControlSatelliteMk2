@@ -13,10 +13,11 @@ size_t RoomInterface::getDeviceInfo(char* buffer) const {
     auto payload = JsonDocument();
     const auto root = payload.to<JsonObject>();
     root["name"] = "TestingDevice"; // Placeholder for the device name
-    root["version"] = BUILD_VERSION; // Use the build version from the build_info.h
-    root["msg_type"] = "device_info"; // This is a device info message
+    root["version"] = BUILD_VERSION; // Use the build version from the build_info.h'
+    root["branch"]  = BUILD_GIT_BRANCH; // Use the build branch from the build_info.h
     root["sub_device_count"] = getDeviceCount();
     root["sub_devices"] = JsonObject();
+    root["msg_type"] = "device_info"; // This is a device info message
     size_t index = 0;
     for (auto current = devices; current != nullptr; current = current->next) {
         root["sub_devices"][current->device->getObjectName()] = current->device->getObjectType();

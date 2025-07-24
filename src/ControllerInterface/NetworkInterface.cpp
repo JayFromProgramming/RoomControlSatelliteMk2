@@ -26,31 +26,27 @@ void NetworkInterface::begin(const char* device_info, const size_t device_info_l
     // Setup wifi client
     this->datalink_client = new WiFiClient();
     // Initialize the tcp/ip connection to the server
-    this->datalink_client->setTimeout(30); // Set a timeout for the connection
+    this->datalink_client->setTimeout(15); // Set a timeout for the connection
     // this->datalink_client->setNoDelay(true); // Disable Nagle's algorithm for low latency
     this->establish_connection();
     // esp_task_wdt_add(system_tasks[0].handle);
-    xTaskCreate(NetworkInterface::downlink_task,
-        "NetworkInterface::downlink_task",
-        20000,
-        this,
-        1,
-        &this->downlink_task_handle
-    );
-    xTaskCreate(NetworkInterface::poll_uplink_buffer,
-        "NetworkInterface::poll_uplink_buffer",
-        10000,
-        this,
-        1,
-        &this->uplink_task_handle
-    );
+    xTaskCreate(downlink_task,"downlink_task", 8192,
+        this,1, &this->downlink_task_handle);
+    xTaskCreate(poll_uplink_buffer,"uplink_task", 16384,
+        this,1 , &this->uplink_task_handle);
+    esp_task_wdt_add(this->downlink_task_handle);
+    esp_task_wdt_add(this->uplink_task_handle);
     DEBUG_PRINT("Network interface initialized successfully");
 }
 
 void NetworkInterface::establish_connection() {
     DEBUG_PRINT("Establishing connection to %s:%d", CENTRAL_HOST, CENTRAL_PORT);
+    ledcSetup(LEDC_CHANNEL, LEDC_FREQUENCY_NO_LINK, LEDC_TIMER);
+    ledcAttachPin(ACTIVITY_LED, LEDC_CHANNEL);
+    ledcWrite(LEDC_CHANNEL, 4096);
     while (true) {
-    const auto connect_result = this->datalink_client->connect(CENTRAL_HOST, CENTRAL_PORT);
+        esp_task_wdt_reset();
+        const auto connect_result = this->datalink_client->connect(CENTRAL_HOST, CENTRAL_PORT);
         if (!connect_result) {
             DEBUG_PRINT("Failed to connect to %s:%d, retrying in 5 seconds...", CENTRAL_HOST, CENTRAL_PORT);
             vTaskDelay(5000 / portTICK_PERIOD_MS);
@@ -64,8 +60,10 @@ void NetworkInterface::establish_connection() {
     if (wrote != device_info_length + 1) {
         DEBUG_PRINT("Failed to write device info to server, wrote %d != %d bytes",
                    wrote, device_info_length);
+        ledcDetachPin(ACTIVITY_LED); // Detach the LED pin if we failed to write
         return;
     }
+    ledcDetachPin(ACTIVITY_LED); // Detach the LED pin after writing
     DEBUG_PRINT("Device information sent successfully [%d bytes]", wrote);
 }
 
@@ -74,15 +72,7 @@ void NetworkInterface::establish_connection() {
     auto *network_interface = static_cast<NetworkInterface *>(pvParameters);
     while (true) {
         network_interface->last_connection_attempt = millis();
-        switch (WiFi.status()) {
-            case WL_CONNECTED:
-                network_interface->flush_downlink_queue();
-                break;
-            case WL_DISCONNECTED:
-                WiFi.reconnect();
-            default:
-                break;
-        }
+        network_interface->flush_downlink_queue();
         esp_task_wdt_reset();
     }
 }
@@ -96,11 +86,13 @@ void NetworkInterface::establish_connection() {
             vTaskDelay(5000);
         }
         // Check if there is data to read from the WebSocket client
-        const auto read = network_interface->datalink_client->readBytesUntil('\0', buffer, sizeof(buffer) - 1);
+        const auto read =
+            network_interface->datalink_client->readBytesUntil('\0', buffer, sizeof(buffer) - 1);
         if (read > 0) {
             buffer[read] = '\0'; // Null-terminate the buffer
             network_interface->handle_uplink_data(buffer, read + 1);
         }
+        esp_task_wdt_reset();
     }
 }
 
@@ -164,9 +156,9 @@ void NetworkInterface::flush_downlink_queue() {
             const uint32_t queue_time = micros() - message.timestamp;
             // Init a timer to keep track of how long it takes to send a message
             const uint32_t start_time = micros();
-            const auto wrote = datalink_client->write(message.data, message.length);
-            datalink_client->write("\0", 1); // Write a null terminator to indicate end of message
-            if (wrote != message.length ) {
+            message.data[message.length] = '\0'; // Ensure the last byte is a null terminator
+            const auto wrote = datalink_client->write(message.data, message.length + 1); // +1 for the null terminator
+            if (wrote != message.length + 1) {
                 DEBUG_PRINT("Failed to write downlink message, wrote %d != %d bytes",
                                wrote, message.length + 1);
                 analogWrite(ACTIVITY_LED, 0);

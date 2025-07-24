@@ -11,6 +11,10 @@
 #include "debug.h"
 
 #define ACTIVITY_LED 2
+#define LEDC_CHANNEL 0
+#define LEDC_FREQUENCY_NO_WIFI 6
+#define LEDC_FREQUENCY_NO_LINK 1
+#define LEDC_TIMER 13
 
 class NetworkInterface {
 

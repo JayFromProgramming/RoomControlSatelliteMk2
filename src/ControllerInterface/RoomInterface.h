@@ -84,30 +84,12 @@ public:
         for (auto & i : argumentScratchSpace) {
             i.finished = true;
         }
-        xTaskCreate(
-            RoomInterface::interfaceLoop,
-            "interfaceLoop",
-            20000,
-            const_cast<RoomInterface*>(this),
-            2,
-            &roomInterfaceTaskHandle
-        );
-        xTaskCreate(
-            RoomInterface::eventLoop,
-            "eventLoop",
-            20000,
-            const_cast<RoomInterface*>(this),
-            2,
-            &eventLoopTaskHandle
-        );
-        xTaskCreate(
-            RoomInterface::interfaceHealthCheck,
-            "interfaceHealthCheck",
-            4096,
-            const_cast<RoomInterface*>(this),
-            0,
-            &interfaceHealthCheckTaskHandle
-        );
+        xTaskCreate(interfaceLoop,"interfaceLoop", 16384,
+            this,2, &roomInterfaceTaskHandle);
+        xTaskCreate(eventLoop, "eventLoop",8192,
+            this, 2, &eventLoopTaskHandle);
+        xTaskCreate(interfaceHealthCheck,"interfaceHealthCheck",1024,
+            this, 0, &interfaceHealthCheckTaskHandle);
         startDeviceLoops();
         DEBUG_PRINT("Room Interface Initialized");
     }
