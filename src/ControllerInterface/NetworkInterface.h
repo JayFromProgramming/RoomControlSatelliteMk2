@@ -9,6 +9,7 @@
 #include <ArduinoJson.h>
 #include "secrets.h"
 #include "debug.h"
+#include "UpdateHandler.h"
 
 #define ACTIVITY_LED 2
 #define LEDC_CHANNEL 0
@@ -64,11 +65,11 @@ private:
     uint32_t last_connection_attempt = 0;
     uint32_t last_transmission = 0;
 
+    UpdateHandler *update_handler = new UpdateHandler();
+
 public:
 
-    NetworkInterface() {
-        pinMode(ACTIVITY_LED, OUTPUT);
-    }
+    NetworkInterface() = default;
 
     static void downlink_task(void *pvParameters);
 

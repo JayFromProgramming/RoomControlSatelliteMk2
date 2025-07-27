@@ -9,6 +9,7 @@
 
 void NetworkInterface::begin(const char* device_info, const size_t device_info_length) {
     DEBUG_PRINT("Initializing Network Interface");
+    pinMode(ACTIVITY_LED, OUTPUT);
     memcpy(this->device_info, device_info, device_info_length);
     this->device_info_length = device_info_length;
     // The network interface runs on Core 0
@@ -34,6 +35,7 @@ void NetworkInterface::begin(const char* device_info, const size_t device_info_l
         this,1, &this->downlink_task_handle);
     xTaskCreate(poll_uplink_buffer,"uplink_task", 16384,
         this,1 , &this->uplink_task_handle);
+    this->update_handler->begin();
     esp_task_wdt_add(this->downlink_task_handle);
     esp_task_wdt_add(this->uplink_task_handle);
     DEBUG_PRINT("Network interface initialized successfully");
@@ -129,10 +131,11 @@ void NetworkInterface::handle_uplink_data(const uint8_t* data, const size_t leng
                                status == errQUEUE_FULL ? "Queue is full" : "Unknown error");
             }
         break;
-        case '\0':
-            // TODO: Implement handling firmware ota update messages
+        case '\t': // This is a heartbeat message
+            update_handler->passData(data + 1, length - 1); // Pass the data to the update handler
+        break;
         default:
-            DEBUG_PRINT("Received unknown message type, ignoring");
+            DEBUG_PRINT("Received unknown message type %d", data[0]);
             return; // Ignore unknown message types
     }
 }
@@ -147,6 +150,7 @@ void NetworkInterface::flush_downlink_queue() {
             DEBUG_PRINT("Downlink queue is not initialized, cannot flush");
             return;
         }
+        esp_task_wdt_reset();
         if (xQueueReceive(downlink_queue, &message, 100) == pdTRUE) {
             analogWrite(ACTIVITY_LED, 32);
             if (WiFi.status() != WL_CONNECTED) {
