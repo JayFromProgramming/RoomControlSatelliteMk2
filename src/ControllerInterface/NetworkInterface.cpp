@@ -118,13 +118,22 @@ void NetworkInterface::handle_uplink_data(const uint8_t* data, const size_t leng
     message.length = length;
     message.timestamp = millis();
     memset(message.data, 0, sizeof(message.data)); // Clear the data buffer
-    memcpy(message.data, data, length);
-
-    // Send the message to the uplink queue
-    const auto status = xQueueSend(this->uplink_queue, &message, 200);
-    if (status != pdTRUE) {
-        DEBUG_PRINT("Failed to move inbound message to uplink queue %s",
-                       status == errQUEUE_FULL ? "Queue is full" : "Unknown error");
+    BaseType_t status = pdFALSE;
+    switch (data[0]){
+        case '\b':
+            memcpy(message.data, data + 1, length);
+            // Send the message to the uplink queue
+            status = xQueueSend(this->uplink_queue, &message, 200);
+            if (status != pdTRUE) {
+                DEBUG_PRINT("Failed to move inbound message to uplink queue %s",
+                               status == errQUEUE_FULL ? "Queue is full" : "Unknown error");
+            }
+        break;
+        case '\0':
+            // TODO: Implement handling firmware ota update messages
+        default:
+            DEBUG_PRINT("Received unknown message type, ignoring");
+            return; // Ignore unknown message types
     }
 }
 

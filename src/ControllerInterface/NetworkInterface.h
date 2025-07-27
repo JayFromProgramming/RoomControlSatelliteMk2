@@ -29,15 +29,7 @@ public:
         LINK_OK          // All connections are up
     } network_state_t;
 
-    typedef enum {
-        SLOT_FREE,
-        MESSAGE_PENDING,
-        MESSAGE_SENT,
-        MESSAGE_FAILED
-    } message_status_t;
-
     typedef struct {
-        SemaphoreHandle_t mutex; // Release this mutex after processing the message
         char data[4096];
         size_t length;
         uint32_t timestamp;
@@ -71,7 +63,6 @@ private:
     WiFiClient* datalink_client;
     uint32_t last_connection_attempt = 0;
     uint32_t last_transmission = 0;
-    const uint32_t connection_interval = 5000;
 
 public:
 

@@ -4,10 +4,29 @@
 
 #include "RoomInterface.h"
 #include "build_info.h"
+
 class RoomDevice;
 
 // Instantiate the singleton instance of the RoomInterface
 auto MainRoomInterface = RoomInterface();
+
+void RoomInterface::begin() {
+    DEBUG_PRINT("Initializing Room Interface");
+    // The network interface runs on Core 0
+    const auto info_size = getDeviceInfo(downlink_buffer);
+    networkInterface->begin(downlink_buffer, info_size);
+    for (auto & i : argumentScratchSpace) {
+        i.finished = true;
+    }
+    xTaskCreate(interfaceLoop,"interfaceLoop", 8192,
+        this,2, &roomInterfaceTaskHandle);
+    xTaskCreate(eventLoop, "eventLoop",8192,
+        this, 2, &eventLoopTaskHandle);
+    xTaskCreate(interfaceHealthCheck,"interfaceHealthCheck",1024,
+        this, 0, &interfaceHealthCheckTaskHandle);
+    startDeviceLoops();
+    DEBUG_PRINT("Room Interface Initialized");
+}
 
 size_t RoomInterface::getDeviceInfo(char* buffer) const {
     auto payload = JsonDocument();
@@ -46,7 +65,7 @@ void RoomInterface::startDeviceLoops() const {
  * @note If the downlink_target_device is not null, only the device with the matching name will be sent.
  */
 void RoomInterface::sendDownlink() {
-    auto payload = JsonDocument();
+    auto payload = downlink_document;
     const auto root = payload.to<JsonObject>();
     root["uptime"] = millis() / 1000; // Uptime in seconds
     root["free_heap"] = esp_get_free_heap_size(); // Free heap size in bytes
@@ -66,10 +85,12 @@ void RoomInterface::sendDownlink() {
     if (downlink_target_device == nullptr) last_full_send = millis(); // Update the last full send time
     downlink_target_device = nullptr; // Reset the exclusive downlink target device
     // Serialize the json data.
-    char buffer[4096] = {0};
-    const auto serialized = serializeJson(payload, &buffer, sizeof(buffer));
+    xSemaphoreTake(downlink_buffer_mutex, portMAX_DELAY); // Take the exclusive downlink mutex
+    memset(downlink_buffer, 0, sizeof(downlink_buffer)); // Clear the buffer
+    const auto serialized = serializeJson(payload, &downlink_buffer, sizeof(downlink_buffer));
     // Queue the message to be sent to CENTRAL
-    networkInterface->queue_message(buffer, serialized);
+    networkInterface->queue_message(downlink_buffer, serialized);
+    xSemaphoreGive(downlink_buffer_mutex); // Release the exclusive downlink mutex
     payload.clear();
 }
 
@@ -78,19 +99,19 @@ void RoomInterface::sendDownlink() {
  * @param target_device The name of the device to send the uplink to. If null, nothing happens and this was pointless.
  */
 void RoomInterface::downlinkNow(char* target_device) {
-    const auto result = xSemaphoreTake(exclusive_uplink_mutex, 50);
+    const auto result = xSemaphoreTake(exclusive_downlink_mutex, 50);
     if (result != pdTRUE) {
         DEBUG_PRINT("Failed to take exclusive uplink mutex");
         return;
     }
     if (downlink_target_device != nullptr) { // The uplink task is still processing a previous exclusive uplink
-        xSemaphoreGive(exclusive_uplink_mutex); // Release the mutex and abort the uplink
+        xSemaphoreGive(exclusive_downlink_mutex); // Release the mutex and abort the uplink
         DEBUG_PRINT("Failed to send exclusive uplink, previous uplink still processing");
         return;
     }
     downlink_target_device = target_device;
     xSemaphoreGive(downlinkSemaphore);
-    xSemaphoreGive(exclusive_uplink_mutex);
+    xSemaphoreGive(exclusive_downlink_mutex);
 }
 
 
@@ -142,7 +163,7 @@ void RoomInterface::downlinkNow(char* target_device) {
  * Send an event to the CENTRAL server.
  * @param event A pointer to a parsed event structure from the working space already filled
  */
-void RoomInterface::sendEvent(ParsedEvent_t* event) const {
+void RoomInterface::sendEvent(ParsedEvent_t* event) {
     // return;
     auto document = event->document;
     const auto root = document.to<JsonObject>();
@@ -169,11 +190,11 @@ void RoomInterface::sendEvent(ParsedEvent_t* event) const {
     }
     // Implement the kwargs object later.
     root["kwargs"] = JsonObject();
-    // Serialize the json data.
-    char buffer[4096] = {0};
-    const auto serialized = serializeJson(document, &buffer, sizeof(buffer));
+    xSemaphoreTake(downlink_buffer_mutex, portMAX_DELAY); // Take the exclusive downlink mutex
+    const auto serialized = serializeJson(document, &downlink_buffer, sizeof(downlink_buffer));
     // Queue the message to be sent to CENTRAL
-    networkInterface->queue_message(buffer, serialized);
+    networkInterface->queue_message(downlink_buffer, serialized);
+    xSemaphoreGive(downlink_buffer_mutex); // Release the exclusive downlink mutex
     cleanup_scratch_space(event);
 }
 
@@ -231,6 +252,7 @@ ParsedEvent_t* RoomInterface::eventParse(const char* data) {
         }
         working_space->numArgs++;
     }
+    event_document.clear();
     return working_space;
 }
 
@@ -259,34 +281,6 @@ void RoomInterface::eventExecute(ParsedEvent_t* event) const {
         esp_task_wdt_reset();
         vTaskDelay(1000);
     }
-}
-
-
-RoomInterface::TaskPile RoomInterface::getAllTaskHandles() const {
-    // auto pile = TaskPile();
-    // auto* taskHandles = new TaskHandle_t*[getDeviceCount() + 3];
-    // pile.names = new const char*[getDeviceCount() + 3];
-    // int i = 0;
-    // // Add the network task handle.
-    // taskHandles[i] = &system_tasks[0].handle;
-    // pile.names[i++] = "RoomInterface";
-    // taskHandles[i] = &system_tasks[1].handle;
-    // // pile.names[i++] = "NetworkInterface";
-    // // taskHandles[i] = &system_tasks[2].handle;
-    // pile.names[i++] = "EventLoop";
-    // for (auto current = devices; current != nullptr; current = current->next) {
-    //     if (current->taskHandle == nullptr) {
-    //         continue;
-    //     }
-    //     taskHandles[i] = &current->taskHandle;
-    //     pile.names[i] = current->device->getObjectName();
-    //     // pile.names[i] = "Unimplemented";
-    //     i++;
-    // }
-    // pile.handles = taskHandles;
-    // pile.count = i;
-    // return pile;
-    return TaskPile();
 }
 
 

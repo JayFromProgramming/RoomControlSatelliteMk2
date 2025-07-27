@@ -21,77 +21,46 @@ class RoomDevice;
 
 class RoomInterface {
 
-public:
-
-    struct TaskPile {
-        TaskHandle_t** handles;
-        const char **names = nullptr;
-        size_t count;
-    };
-
-
-private:
-
     // Setup scratch space for storing the parsed arguments for multiple events so we don't have to malloc/free
     // every time we parse an event.
+
+    NetworkInterface* networkInterface = new NetworkInterface();
 
     ParsedEvent_t argumentScratchSpace[4] = {};
 
     JsonDocument event_document = JsonDocument();
-    JsonDocument uplink_document = JsonDocument();
+    JsonDocument downlink_document = JsonDocument();
+    SemaphoreHandle_t downlink_buffer_mutex = xSemaphoreCreateMutex();
+    char downlink_buffer[4096] = {0}; // Buffer for the downlink data
 
-    mutable TickType_t lastWakeTime;
+    mutable TickType_t lastWakeTime = 0; // Last time the interface loop was woken up
     const TickType_t loopInterval = 15000 / portTICK_PERIOD_MS;  // Wake to send the status update every 30 seconds
+
+    TaskHandle_t roomInterfaceTaskHandle = nullptr;
+    TaskHandle_t eventLoopTaskHandle = nullptr;
+    TaskHandle_t interfaceHealthCheckTaskHandle = nullptr;
 
     struct DeviceList {
         RoomDevice* device;
         TaskHandle_t taskHandle;
         DeviceList* next;
     };
-
-    struct SystemTasks {
-        TaskHandle_t handle;
-        const char* name;
-    };
-
-    TaskHandle_t roomInterfaceTaskHandle = nullptr;
-    TaskHandle_t eventLoopTaskHandle = nullptr;
-    TaskHandle_t interfaceHealthCheckTaskHandle = nullptr;
-
-    char* info_buffer = new char[1024];
-    uint32_t last_full_send;
-    NetworkInterface* networkInterface = new NetworkInterface();
     DeviceList* devices = nullptr;
+
     SemaphoreHandle_t downlinkSemaphore = xSemaphoreCreateBinary();
-    SemaphoreHandle_t exclusive_uplink_mutex = xSemaphoreCreateMutex();
-    TickType_t last_event_parse;
+    SemaphoreHandle_t exclusive_downlink_mutex = xSemaphoreCreateMutex();
+    TickType_t last_event_parse = 0;
+
+    uint32_t last_full_send = 0; // Last time the downlink was sent
     char* downlink_target_device = nullptr;
 
 public:
 
-    RoomInterface() {
-
-    }
+    RoomInterface() = default;
 
     size_t getDeviceInfo(char* buffer) const;
 
-    void begin() {
-        DEBUG_PRINT("Initializing Room Interface");
-        // The network interface runs on Core 0
-        const auto info_size = getDeviceInfo(info_buffer);
-        networkInterface->begin(info_buffer, info_size);
-        for (auto & i : argumentScratchSpace) {
-            i.finished = true;
-        }
-        xTaskCreate(interfaceLoop,"interfaceLoop", 16384,
-            this,2, &roomInterfaceTaskHandle);
-        xTaskCreate(eventLoop, "eventLoop",8192,
-            this, 2, &eventLoopTaskHandle);
-        xTaskCreate(interfaceHealthCheck,"interfaceHealthCheck",1024,
-            this, 0, &interfaceHealthCheckTaskHandle);
-        startDeviceLoops();
-        DEBUG_PRINT("Room Interface Initialized");
-    }
+    void begin();
 
     /**
      * Writes a string to the scratch space buffer and returns a pointer to the string in the buffer.
@@ -152,13 +121,12 @@ public:
 
     static void interfaceHealthCheck(void* pvParameters);
 
-    void sendEvent(ParsedEvent_t* event) const;
+    void sendEvent(ParsedEvent_t* event);
 
     ParsedEvent_t* eventParse(const char* data);
 
     void eventExecute(ParsedEvent_t* event) const;
 
-    TaskPile getAllTaskHandles() const;
 };
 
 
