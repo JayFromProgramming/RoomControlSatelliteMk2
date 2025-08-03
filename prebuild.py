@@ -3,8 +3,8 @@
 from datetime import datetime
 from subprocess import CalledProcessError
 
-from platformio import util
 import configparser
+
 
 # Add build info to build_info.h so it can be included in the firmware
 
@@ -22,12 +22,16 @@ def get_git_hash():
     import subprocess
     return subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
 
+
 def get_git_branch():
     import subprocess
     return subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).decode('ascii').strip()
+
+
 def get_machine_name():
     import socket
     return socket.gethostname()
+
 
 def get_build_type():
     import os
@@ -53,13 +57,13 @@ except IOError:
     open('src/build_info.h', 'w').close()
 
 with open('src/build_info.h') as f:
-    lines = f.readlines() # Read the first line to get the build number
+    lines = f.readlines()  # Read the first line to get the build number
     if len(lines) == 0:
         build_number_minor = 1
         build_number_major = 0
         build_number_breaking = 0
     else:
-        build_number_minor = int(lines[1].split()[2]) + 1 # Increment the build number
+        build_number_minor = int(lines[1].split()[2]) + 1  # Increment the build number
         build_number_major = int(lines[2].split()[2])
         build_number_breaking = int(lines[3].split()[2])
     build_date = datetime.now().strftime("%Y-%m-%d")

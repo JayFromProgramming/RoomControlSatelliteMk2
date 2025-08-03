@@ -132,7 +132,7 @@ void NetworkInterface::handle_uplink_data(const uint8_t* data, const size_t leng
             }
         break;
         case '\t': // This is a heartbeat message
-            update_handler->passData(data + 1, length - 1); // Pass the data to the update handler
+            update_handler->passData(data + 1, length - 2); // Pass the data to the update handler
         break;
         default:
             DEBUG_PRINT("Received unknown message type %d", data[0]);

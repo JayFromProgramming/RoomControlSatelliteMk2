@@ -8,6 +8,7 @@
 // #include <esp_system.h>
 #include <esp_task_wdt.h>
 
+#include "build_info.h"
 #include "ping.h"
 // #include <Devices/BlueStalker.h>
 // #include <esp32/rom/ets_sys.h>
@@ -81,6 +82,28 @@ void connect_wifi() {
 
 void setup() {
     Serial.begin(115200); // Initialize serial communication at 115200 baud rate
+    const auto  partition = esp_ota_get_running_partition();
+    DEBUG_PRINT("Starting RoomDevice [%s] on %s - Partition: %s",
+        BUILD_VERSION, BUILD_GIT_BRANCH, partition->label);
+    esp_ota_img_states_t ota_state = ESP_OTA_IMG_UNDEFINED;
+    esp_ota_get_state_partition(partition, &ota_state);
+    switch (ota_state) {
+        case ESP_OTA_IMG_PENDING_VERIFY:
+            DEBUG_PRINT("Booted from a new OTA image, will verify");
+            // esp_restart(); // Restart the device to verify the OTA image
+            break;
+        case ESP_OTA_IMG_VALID:
+            DEBUG_PRINT("Current software image is valid, continuing startup...");
+            break;
+        case ESP_OTA_IMG_INVALID:
+            DEBUG_PRINT("WARNING: Somehow booted from an invalid OTA image...");
+            break;
+        case ESP_OTA_IMG_UNDEFINED:
+            DEBUG_PRINT("Undefined OTA state, likely factory boot");
+            break;
+        default:
+            DEBUG_PRINT("Unknown OTA state: %d", ota_state);
+    }
     ledcSetup(LEDC_CHANNEL, LEDC_FREQUENCY_NO_WIFI, LEDC_TIMER);
     ledcAttachPin(ACTIVITY_LED, LEDC_CHANNEL);
     ledcWrite(LEDC_CHANNEL, 4096); // Turn off the activity LED initially
@@ -93,7 +116,7 @@ void setup() {
     environmentSensor = new EnvironmentSensor();
     // delay(1000);
     DEBUG_PRINT("Starting up all Tasks...");
-    MainRoomInterface.begin();
+    MainRoomInterface.begin(BUILD_GIT_BRANCH);
     DEBUG_PRINT("Task startup complete.");
     esp_task_wdt_init(20, true);
     DEBUG_PRINT("Remaining Free Heap: %d bytes", esp_get_free_heap_size());

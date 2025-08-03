@@ -55,10 +55,15 @@ void UpdateHandler::startUpdate() {
     esp_ota_handle_t otaHandle = 0;
     otaPartition = esp_ota_get_next_update_partition(nullptr);
     const auto result = esp_ota_begin(otaPartition, otaSize, &otaHandle);
+    if (otaPartition == nullptr) {
+        DEBUG_PRINT("No OTA partition found, cannot start update");
+        return; // Exit the function if no partition is available
+    }
     if (result != ESP_OK) {
         DEBUG_PRINT("Failed to begin OTA update: %s", esp_err_to_name(result));
         return; // Exit the function on error
     }
+    DEBUG_PRINT("OTA update started successfully on partition: %s", otaPartition->label);
     this->otaRemaining = otaSize;
     this->otaHandle = otaHandle;
 }
@@ -69,14 +74,10 @@ void UpdateHandler::handleUpdate() {
     if (xQueueReceive(incomingDataQueue, &data, portMAX_DELAY) == pdTRUE) {
         if (otaHandle == 0) {
             if (data.length != 4) {
+                DEBUG_PRINT("0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X",
+                            data.data[0], data.data[1], data.data[2], data.data[3], data.data[4], data.data[5]);
                 DEBUG_PRINT("Invalid OTA start message, expecting total firmware length got %zu bytes", data.length);
-                char dataStr[64];
-                // Print the data as a hex string for debugging
-                for (size_t i = 0; i < data.length && i < sizeof(dataStr) - 1; i++) {
-                    snprintf(dataStr + i * 2, sizeof(dataStr) - i * 2, "%02x", data.data[i]);
-                }
-                dataStr[sizeof(dataStr) - 1] = '\0'; // Ensure null termination
-                DEBUG_PRINT("Received data: %s", dataStr);
+                vTaskDelay(500);
                 esp_restart();
             }
             otaSize = *(reinterpret_cast<const uint32_t*>(data.data));
@@ -96,9 +97,6 @@ void UpdateHandler::handleUpdate() {
             DEBUG_PRINT("OTA update complete, finishing update");
             finishUpdate();
             otaHandle = 0; // Reset the handle after finishing
-        } else if (otaRemaining % 4096 == 0) {
-            // Log progress every 4096 bytes
-            DEBUG_PRINT("OTA update in progress: %u bytes remaining", otaRemaining);
         }
     }
 }
@@ -116,11 +114,11 @@ void UpdateHandler::finishUpdate() {
     }
     DEBUG_PRINT("OTA update finished successfully, switching boot partitions");
     const auto switchResult = esp_ota_set_boot_partition(otaPartition);
+    // Mark the next partition as ESP_OTA_IMG_NEW
     if (switchResult != ESP_OK) {
         DEBUG_PRINT("Failed to set boot partition: %s", esp_err_to_name(switchResult));
-    } else {
-        DEBUG_PRINT("Boot partition set successfully, rebooting device");
-        esp_restart(); // Reboot the device to apply the update
+        return; // Exit the function on error
     }
+
 
 }

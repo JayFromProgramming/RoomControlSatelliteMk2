@@ -10,8 +10,13 @@ class RoomDevice;
 // Instantiate the singleton instance of the RoomInterface
 auto MainRoomInterface = RoomInterface();
 
-void RoomInterface::begin() {
+void RoomInterface::begin(const char* device_name) {
     DEBUG_PRINT("Initializing Room Interface");
+    if (device_name == nullptr) {
+        DEBUG_PRINT("Device name is null, cannot initialize Room Interface");
+        return; // Exit if the device name is null
+    }
+    deviceName = device_name; // Set the device name
     // The network interface runs on Core 0
     const auto info_size = getDeviceInfo(downlink_buffer);
     networkInterface->begin(downlink_buffer, info_size);
@@ -31,7 +36,7 @@ void RoomInterface::begin() {
 size_t RoomInterface::getDeviceInfo(char* buffer) const {
     auto payload = JsonDocument();
     const auto root = payload.to<JsonObject>();
-    root["name"] = "TestingDevice"; // Placeholder for the device name
+    root["name"] = deviceName;
     root["version"] = BUILD_VERSION; // Use the build version from the build_info.h'
     root["branch"]  = BUILD_GIT_BRANCH; // Use the build branch from the build_info.h
     root["sub_device_count"] = getDeviceCount();
