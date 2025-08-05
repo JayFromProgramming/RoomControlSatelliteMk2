@@ -12,12 +12,12 @@ void NetworkInterface::begin(const char* device_info, const size_t device_info_l
     memcpy(this->device_info, device_info, device_info_length);
     this->device_info_length = device_info_length;
     // The network interface runs on Core 0
-    this->downlink_queue = xQueueCreate(10, sizeof(downlink_message_t));
+    this->downlink_queue = xQueueCreate(5, sizeof(downlink_message_t));
     if (this->downlink_queue == nullptr) {
         DEBUG_PRINT("Failed to create downlink queue");
         return;
     }
-    this->uplink_queue = xQueueCreate(10, sizeof(uplink_message_t));
+    this->uplink_queue = xQueueCreate(5, sizeof(uplink_message_t));
     if (this->uplink_queue == nullptr) {
         DEBUG_PRINT("Failed to create uplink queue");
         vQueueDelete(this->downlink_queue);
@@ -189,3 +189,10 @@ void NetworkInterface::flush_downlink_queue() {
     }
 }
 
+BaseType_t NetworkInterface::uplink_queue_receive(uplink_message_t* message, const TickType_t waitTime) const {
+    if (this->uplink_queue == nullptr) {
+        DEBUG_PRINT("Uplink queue is not initialized, cannot get message");
+        return pdFALSE;
+    }
+    return xQueueReceive(this->uplink_queue, message, waitTime);
+}

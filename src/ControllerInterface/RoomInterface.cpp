@@ -154,7 +154,7 @@ void RoomInterface::downlinkNow(char* target_device) {
     while (true) {
         // Check the uplink queue for new events.
         NetworkInterface::uplink_message_t message;
-        if (xQueueReceive(roomInterface->networkInterface->uplink_queue, &message, 100) == pdTRUE) {
+        if (roomInterface->networkInterface->uplink_queue_receive(&message, 100) == pdTRUE) {
             DEBUG_PRINT("Received Event: %s", message.data);
             // Parse the event data and execute the event.
             auto* parsed = roomInterface->eventParse(message.data);

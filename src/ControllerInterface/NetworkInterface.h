@@ -42,9 +42,10 @@ public:
         uint32_t timestamp;
     } uplink_message_t;
 
-    QueueHandle_t uplink_queue;
-
 private:
+
+    QueueHandle_t uplink_queue = nullptr;
+    QueueHandle_t downlink_queue = nullptr;
 
     char device_info[1024] = {0};
     size_t device_info_length = 0;
@@ -54,14 +55,13 @@ private:
     TaskHandle_t uplink_task_handle = nullptr;
     TaskHandle_t downlink_task_handle = nullptr;
 
-    QueueHandle_t downlink_queue;
-
     static void poll_uplink_buffer(void *pvParameters);
 
     void flush_downlink_queue();
-    void handle_uplink_data(const uint8_t* data, const size_t length) const;
 
-    WiFiClient* datalink_client;
+    void handle_uplink_data(const uint8_t* data, size_t length) const;
+
+    WiFiClient* datalink_client = nullptr;
     uint32_t last_connection_attempt = 0;
     uint32_t last_transmission = 0;
 
@@ -73,11 +73,13 @@ public:
 
     static void downlink_task(void *pvParameters);
 
-    void begin(const char* device_info, const size_t device_info_length);
+    void begin(const char* device_info, size_t device_info_length);
 
     void establish_connection();
 
     void queue_message(const char *data, size_t length) const;
+
+    BaseType_t uplink_queue_receive(uplink_message_t* message, TickType_t ticks_to_wait) const;
 
 };
 
