@@ -2,7 +2,6 @@
 // Created by Jay on 10/12/2024.
 //
 
-#include <ESP32Ping.h>
 #include "NetworkInterface.h"
 
 #include <esp_task_wdt.h>
@@ -70,7 +69,6 @@ void NetworkInterface::establish_connection() {
 }
 
 [[noreturn]] void NetworkInterface::downlink_task(void *pvParameters) {
-    DEBUG_PING("Starting Downlink Task");
     auto *network_interface = static_cast<NetworkInterface *>(pvParameters);
     while (true) {
         network_interface->last_connection_attempt = millis();

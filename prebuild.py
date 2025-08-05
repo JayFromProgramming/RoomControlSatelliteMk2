@@ -1,10 +1,14 @@
 # Written by: Jay Sweeney (ajsweene@mtu.edu)
 
+Import("env")
+
+import postbuild
 from datetime import datetime
 from subprocess import CalledProcessError
 
 import configparser
 
+env.AddPostAction("buildprog", postbuild.upload_firmware)
 
 # Add build info to build_info.h so it can be included in the firmware
 

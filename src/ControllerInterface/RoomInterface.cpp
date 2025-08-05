@@ -16,7 +16,7 @@ void RoomInterface::begin(const char* device_name) {
         DEBUG_PRINT("Device name is null, cannot initialize Room Interface");
         return; // Exit if the device name is null
     }
-    deviceName = device_name; // Set the device name
+    deviceName = const_cast<char*>(device_name); // Set the device name
     // The network interface runs on Core 0
     const auto info_size = getDeviceInfo(downlink_buffer);
     networkInterface->begin(downlink_buffer, info_size);

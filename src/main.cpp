@@ -9,7 +9,6 @@
 #include <esp_task_wdt.h>
 
 #include "build_info.h"
-#include "ping.h"
 // #include <Devices/BlueStalker.h>
 // #include <esp32/rom/ets_sys.h>
 
@@ -47,6 +46,17 @@ const char* wifi_status_to_string(const wl_status_t status) {
     }
 }
 
+const char* ota_state_to_string(const esp_ota_img_states_t state) {
+    switch (state) {
+        case ESP_OTA_IMG_NEW: return "ESP_OTA_IMG_NEW";
+        case ESP_OTA_IMG_UNDEFINED: return "ESP_OTA_IMG_UNDEFINED";
+        case ESP_OTA_IMG_VALID: return "ESP_OTA_IMG_VALID";
+        case ESP_OTA_IMG_INVALID: return "ESP_OTA_IMG_INVALID";
+        case ESP_OTA_IMG_PENDING_VERIFY: return "ESP_OTA_IMG_PENDING_VERIFY";
+        default: return "Unknown";
+    }
+}
+
 /**
  * Print the current time in the format mm/dd/yyyy hh:mm:ss
  * @param buffer Target string buffer
@@ -80,30 +90,27 @@ void connect_wifi() {
 
 }
 
+void check_partition_states() {
+    // Print the state of both OTA partitions
+    const auto partition = esp_ota_get_running_partition();
+    esp_ota_img_states_t ota_state = ESP_OTA_IMG_UNDEFINED;
+    esp_ota_get_state_partition(partition, &ota_state);
+    DEBUG_PRINT("Running Partition: %s - State: %d (%s)",
+        partition->label, ota_state, ota_state_to_string(ota_state));
+    const auto next_partition = esp_ota_get_next_update_partition(partition);
+    esp_ota_get_state_partition(next_partition, &ota_state);
+    DEBUG_PRINT("Next Partition: %s - State: %d (%s)",
+        next_partition->label, ota_state, ota_state_to_string(ota_state));
+}
+
 void setup() {
     Serial.begin(115200); // Initialize serial communication at 115200 baud rate
     const auto  partition = esp_ota_get_running_partition();
     DEBUG_PRINT("Starting RoomDevice [%s] on %s - Partition: %s",
         BUILD_VERSION, BUILD_GIT_BRANCH, partition->label);
-    esp_ota_img_states_t ota_state = ESP_OTA_IMG_UNDEFINED;
-    esp_ota_get_state_partition(partition, &ota_state);
-    switch (ota_state) {
-        case ESP_OTA_IMG_PENDING_VERIFY:
-            DEBUG_PRINT("Booted from a new OTA image, will verify");
-            // esp_restart(); // Restart the device to verify the OTA image
-            break;
-        case ESP_OTA_IMG_VALID:
-            DEBUG_PRINT("Current software image is valid, continuing startup...");
-            break;
-        case ESP_OTA_IMG_INVALID:
-            DEBUG_PRINT("WARNING: Somehow booted from an invalid OTA image...");
-            break;
-        case ESP_OTA_IMG_UNDEFINED:
-            DEBUG_PRINT("Undefined OTA state, likely factory boot");
-            break;
-        default:
-            DEBUG_PRINT("Unknown OTA state: %d", ota_state);
-    }
+    check_partition_states();
+    esp_ota_mark_app_invalid_rollback_and_reboot();
+    check_partition_states();
     ledcSetup(LEDC_CHANNEL, LEDC_FREQUENCY_NO_WIFI, LEDC_TIMER);
     ledcAttachPin(ACTIVITY_LED, LEDC_CHANNEL);
     ledcWrite(LEDC_CHANNEL, 4096); // Turn off the activity LED initially

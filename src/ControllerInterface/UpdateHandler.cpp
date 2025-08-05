@@ -51,6 +51,9 @@ void UpdateHandler::passData(const uint8_t* data, const size_t length) const {
 }
 
 void UpdateHandler::startUpdate() {
+#ifndef CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE
+#pragma message("Warning: Bootloader rollback is not enabled, OTA will not be enabled")
+#endif
     DEBUG_PRINT("Starting OTA update with size: %u bytes", otaSize);
     esp_ota_handle_t otaHandle = 0;
     otaPartition = esp_ota_get_next_update_partition(nullptr);
@@ -70,7 +73,7 @@ void UpdateHandler::startUpdate() {
 
 void UpdateHandler::handleUpdate() {
     // Wait for data to be available in the queue
-    updateData_t data;
+    updateData_t data{};
     if (xQueueReceive(incomingDataQueue, &data, portMAX_DELAY) == pdTRUE) {
         if (otaHandle == 0) {
             if (data.length != 4) {
@@ -119,6 +122,13 @@ void UpdateHandler::finishUpdate() {
         DEBUG_PRINT("Failed to set boot partition: %s", esp_err_to_name(switchResult));
         return; // Exit the function on error
     }
+    // Mark the otaPartition as ESP_OTA_IMG_PENDING_VERIF
+    esp_ota_img_states_t otaState;
+    esp_ota_get_state_partition(otaPartition, &otaState);
+    if (otaState != ESP_OTA_IMG_NEW) {
+        DEBUG_PRINT("Warning: OTA partition was not marked as ESP_OTA_IMG_NEW by esp_ota_set_boot_partition, current state: %d", otaState);
+    }
 
+    esp_restart();
 
 }
