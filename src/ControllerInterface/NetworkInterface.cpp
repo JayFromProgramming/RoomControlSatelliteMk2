@@ -181,6 +181,7 @@ void NetworkInterface::flush_downlink_queue() {
                 micros() - start_time,
                 message.length / ((micros() - start_time) / 1000000.0f) / 1024.0f,
                 queue_time / 1000.0f);
+            UpdateHandler::mark_update_valid();
             last_transmission = millis();
             analogWrite(ACTIVITY_LED, 0); // Turn off the activity LED to indicate no activity
             esp_task_wdt_reset();

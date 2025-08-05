@@ -55,7 +55,7 @@ private:
     TaskHandle_t uplink_task_handle = nullptr;
     TaskHandle_t downlink_task_handle = nullptr;
 
-    static void poll_uplink_buffer(void *pvParameters);
+    [[noreturn]] static void poll_uplink_buffer(void *pvParameters);
 
     void flush_downlink_queue();
 
@@ -71,7 +71,7 @@ public:
 
     NetworkInterface() = default;
 
-    static void downlink_task(void *pvParameters);
+    [[noreturn]] static void downlink_task(void *pvParameters);
 
     void begin(const char* device_info, size_t device_info_length);
 

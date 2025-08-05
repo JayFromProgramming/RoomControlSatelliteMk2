@@ -24,6 +24,7 @@ class UpdateHandler {
     esp_ota_handle_t otaHandle = 0;
     uint32_t otaSize = OTA_SIZE_UNKNOWN;
     uint32_t otaRemaining = 0;
+    uint32_t otaDelay = portMAX_DELAY;
 
     const esp_partition_t *otaPartition = nullptr;
 
@@ -34,7 +35,7 @@ class UpdateHandler {
 
     QueueHandle_t incomingDataQueue = xQueueCreate(5, sizeof(updateData_t));
 
-    static void updateTask(void* pvParameters);
+    [[noreturn]] static void updateTask(void* pvParameters);
 
     void handleUpdate();
 
@@ -42,7 +43,18 @@ class UpdateHandler {
 
     void finishUpdate();
 
+    void abortUpdate();
+
+    static void check_partition_states();
+
+    static const esp_partition_t* get_factory_partition();
+
 public:
+
+    enum RollbackDetectionFlags {
+        ROLLBACK_ARMED = 0xCAFEBABE,
+        ROLLBACK_NOT_ARMED = 0x00000000
+    };
 
     UpdateHandler() = default;
 
@@ -51,8 +63,13 @@ public:
         xTaskCreatePinnedToCore(updateTask, "UpdateHandler", 8192, this, 1, nullptr, 1);
     }
 
-    void passData(const uint8_t* data, const size_t length) const;
+    void passData(const uint8_t* data, size_t length) const;
 
+    static void check_for_rollback();
+
+    static void mark_update_valid();
+
+    static void mark_update_invalid_and_reboot();
 };
 
 
