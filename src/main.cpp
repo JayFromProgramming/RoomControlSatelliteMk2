@@ -3,7 +3,8 @@
 #include <Devices/MotionDetector.h>
 #include <Devices/Radiator.h>
 
-#include "ControllerInterface/RoomInterface.h"
+#include "RoomInterface.h"
+#include "debug.h"
 #include <esp_task_wdt.h>
 #include <esp_partition.h>
 #include "build_info.h"

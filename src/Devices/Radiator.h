@@ -4,7 +4,7 @@
 
 #ifndef RADIATOR_H
 #define RADIATOR_H
-#include <ControllerInterface/RoomDevice.h>
+#include <RoomDevice.h>
 
 #define RADIATOR_PIN 5
 #define RadiatorTimeout 120000  // Disable the radiator after 2 minutes no server heartbeat

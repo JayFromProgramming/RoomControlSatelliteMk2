@@ -5,7 +5,7 @@
 #ifndef ENVIRONMENTSENSOR_H
 #define ENVIRONMENTSENSOR_H
 
-#include <ControllerInterface/RoomDevice.h>
+#include <RoomDevice.h>
 #include <AHT20.h>
 #include <Wire.h>
 

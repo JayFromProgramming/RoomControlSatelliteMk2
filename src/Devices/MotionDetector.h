@@ -5,7 +5,7 @@
 #ifndef MOTIONDETECTOR_H
 #define MOTIONDETECTOR_H
 
-#include <ControllerInterface/RoomDevice.h>
+#include <RoomDevice.h>
 
 #define MOTION_DETECTOR_PIN 17
 
