@@ -7,16 +7,20 @@
 
 class RoomDevice;
 
+volatile extern uint32_t idle_count; // Global variable to track idle tick count
+
 // Instantiate the singleton instance of the RoomInterface
 auto MainRoomInterface = RoomInterface();
 
-void RoomInterface::begin(const char* device_name) {
+void RoomInterface::begin(const char* device_name, const char* device_version, const char* device_branch) {
     DEBUG_PRINT("Initializing Room Interface");
     if (device_name == nullptr) {
         DEBUG_PRINT("Device name is null, cannot initialize Room Interface");
         return; // Exit if the device name is null
     }
-    deviceName = const_cast<char*>(device_name); // Set the device name
+    deviceName = device_name; // Set the device name
+    deviceVersion = device_version; // Set the device version
+    deviceBranch = device_branch; // Set the device branch
     // The network interface runs on Core 0
     const auto info_size = getDeviceInfo(downlink_buffer);
     networkInterface->begin(downlink_buffer, info_size);
@@ -36,9 +40,10 @@ void RoomInterface::begin(const char* device_name) {
 size_t RoomInterface::getDeviceInfo(char* buffer) const {
     auto payload = JsonDocument();
     const auto root = payload.to<JsonObject>();
-    root["name"] = deviceName;
-    root["version"] = BUILD_VERSION; // Use the build version from the build_info.h'
-    root["branch"]  = BUILD_GIT_BRANCH; // Use the build branch from the build_info.h
+    root["name"]    = deviceName;
+    root["version"] = deviceVersion;
+    root["branch"]  = deviceBranch;
+    root["partition"] = esp_ota_get_running_partition()->label;
     root["sub_device_count"] = getDeviceCount();
     root["sub_devices"] = JsonObject();
     root["msg_type"] = "device_info"; // This is a device info message
@@ -72,9 +77,10 @@ void RoomInterface::startDeviceLoops() const {
 void RoomInterface::sendDownlink() {
     auto payload = downlink_document;
     const auto root = payload.to<JsonObject>();
-    root["uptime"] = millis() / 1000; // Uptime in seconds
+    root["mcu_uptime"] = millis() / 1000; // Uptime in seconds
     root["free_heap"] = esp_get_free_heap_size(); // Free heap size in bytes
     root["mcu_temp"] = temperatureRead(); // MCU temperature in degrees Celsius
+    root["cpu_idle"] = idle_count; // CPU idle count
     root["objects"] = JsonObject();
     root["msg_type"] = "state_update"; // This is a downlink message
     for (auto current = devices; current != nullptr; current = current->next) {

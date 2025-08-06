@@ -7,7 +7,7 @@
 
 #include <WiFi.h>
 #include <ArduinoJson.h>
-#include "secrets.h"
+// #include "secrets.h"
 #include "debug.h"
 #include "UpdateHandler.h"
 
@@ -67,13 +67,28 @@ private:
 
     UpdateHandler *update_handler = new UpdateHandler();
 
+    const char* WIFI_SSID;
+    const char* WIFI_PASSWORD;
+    const char* CENTRAL_HOST;
+    uint16_t CENTRAL_PORT;
+
 public:
 
     NetworkInterface() = default;
 
+    void pass_network_credentials(const char* ssid, const char* password,
+        const char* central_host, const uint16_t central_port) {
+        WIFI_SSID = ssid;
+        WIFI_PASSWORD = password;
+        CENTRAL_HOST = central_host;
+        CENTRAL_PORT = central_port;
+    }
+
     [[noreturn]] static void downlink_task(void *pvParameters);
 
-    void begin(const char* device_info, size_t device_info_length);
+    void connect_wifi();
+
+    void begin(const char* device_info_ptr, size_t info_length);
 
     void establish_connection();
 

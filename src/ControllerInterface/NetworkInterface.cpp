@@ -6,11 +6,50 @@
 
 #include <esp_task_wdt.h>
 
-void NetworkInterface::begin(const char* device_info, const size_t device_info_length) {
+const char* wifi_status_to_string(const wl_status_t status) {
+    switch (status) {
+        case WL_NO_SHIELD: return "No Shield";
+        case WL_IDLE_STATUS: return "Idle";
+        case WL_NO_SSID_AVAIL: return "No SSID Available";
+        case WL_SCAN_COMPLETED: return "Scan Completed";
+        case WL_CONNECTED: return "Connected";
+        case WL_CONNECT_FAILED: return "Connect Failed";
+        case WL_CONNECTION_LOST: return "Connection Lost";
+        case WL_DISCONNECTED: return "Disconnected";
+        default: return "Unknown";
+    }
+}
+
+void NetworkInterface::connect_wifi() {
+    DEBUG_PRINT("Starting WiFi...");
+    ledcSetup(LEDC_CHANNEL, LEDC_FREQUENCY_NO_WIFI, LEDC_TIMER);
+    ledcAttachPin(ACTIVITY_LED, LEDC_CHANNEL);
+    ledcWrite(LEDC_CHANNEL, 4096); // Turn off the activity LED initially
+    WiFi.mode(WIFI_MODE_STA);  // Setup wifi to connect to an access point
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD); // Pass the SSID and Password to the WiFi.begin function
+    WiFi.setAutoReconnect(true); // Enable auto reconnect
+    WiFi.setHostname("RoomDevice"); // Set the hostname of the device (doesn't seem to work)
+    DEBUG_PRINT("Wi-FI MAC Address: %s", WiFi.macAddress().c_str());
+    DEBUG_PRINT("Attempting to connect to WiFi SSID: \"%s\" with Password: \"%s\"", WIFI_SSID, WIFI_PASSWORD);
+    auto wifi_status = WiFi.waitForConnectResult();
+    if (wifi_status != WL_CONNECTED) {
+        DEBUG_PRINT("WiFi failed to connect [%s], attempting again...", wifi_status_to_string(static_cast<wl_status_t>(wifi_status)));
+        vTaskDelay(5000);
+        connect_wifi(); // Retry connecting to WiFi
+        return;
+    }
+    DEBUG_PRINT("WiFi connected [%s] with IP: %s",
+        wifi_status_to_string(static_cast<wl_status_t>(wifi_status)),
+        WiFi.localIP().toString().c_str());
+    ledcDetachPin(ACTIVITY_LED); // Detach the LED pin after connecting to WiFi
+}
+
+void NetworkInterface::begin(const char* device_info_ptr, const size_t info_length) {
     DEBUG_PRINT("Initializing Network Interface");
+    connect_wifi();
     pinMode(ACTIVITY_LED, OUTPUT);
-    memcpy(this->device_info, device_info, device_info_length);
-    this->device_info_length = device_info_length;
+    memcpy(this->device_info, device_info_ptr, info_length);
+    this->device_info_length = info_length;
     // The network interface runs on Core 0
     this->downlink_queue = xQueueCreate(5, sizeof(downlink_message_t));
     if (this->downlink_queue == nullptr) {

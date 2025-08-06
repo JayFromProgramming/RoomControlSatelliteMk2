@@ -1,7 +1,7 @@
 //
 // Created by Aidan on 7/21/2025.
 //
-
+#pragma once
 #ifndef DEBUG_H
 #define DEBUG_H
 

@@ -23,7 +23,9 @@ class RoomInterface {
 
     // Setup scratch space for storing the parsed arguments for multiple events so we don't have to malloc/free
     // every time we parse an event.
-    char* deviceName = nullptr; // Name of the device this interface is running on
+    const char* deviceName = nullptr; // Name of the device this interface is running on
+    const char* deviceVersion = nullptr; // Version of the device this interface is running on
+    const char* deviceBranch = nullptr; // Branch of the device this interface is running on
     NetworkInterface* networkInterface = new NetworkInterface();
 
     ParsedEvent_t argumentScratchSpace[4] = {};
@@ -58,9 +60,14 @@ public:
 
     RoomInterface() = default;
 
+    void setNetworkCredentials(const char* ssid, const char* password,
+        const char* central_host = nullptr, const uint16_t central_port = 0) const {
+        networkInterface->pass_network_credentials(ssid, password, central_host, central_port);
+    }
+
     size_t getDeviceInfo(char* buffer) const;
 
-    void begin(const char* device_name);
+    void begin(const char* device_name, const char* device_version, const char* device_branch);
 
     /**
      * Writes a string to the scratch space buffer and returns a pointer to the string in the buffer.

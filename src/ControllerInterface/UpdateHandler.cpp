@@ -81,7 +81,7 @@ void UpdateHandler::startUpdate() {
     DEBUG_PRINT("OTA update started successfully on partition: %s", otaPartition->label);
     this->otaRemaining = otaSize;
     this->otaHandle = otaHandle;
-    this->otaDelay = 1500;
+    this->otaDelay = 10000; // Set the delay to 10 seconds for the first write
 }
 
 void UpdateHandler::handleUpdate() {
@@ -91,10 +91,10 @@ void UpdateHandler::handleUpdate() {
     if (status == pdTRUE) {
         if (otaHandle == 0) {
             if (data.length != 4) {
-                DEBUG_PRINT("0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X",
-                            data.data[0], data.data[1], data.data[2], data.data[3], data.data[4], data.data[5]);
-                DEBUG_PRINT("Invalid OTA start message, expecting total firmware length got %zu bytes", data.length);
-                vTaskDelay(500);
+                // DEBUG_PRINT("0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X",
+                //             data.data[0], data.data[1], data.data[2], data.data[3], data.data[4], data.data[5]);
+                // DEBUG_PRINT("Invalid OTA start message, expecting total firmware length got %zu bytes", data.length);
+                // vTaskDelay(500);
                 return; // Exit the function if the data is not the expected length
             }
             otaSize = *(reinterpret_cast<const uint32_t*>(data.data));
