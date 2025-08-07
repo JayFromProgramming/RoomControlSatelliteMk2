@@ -56,6 +56,12 @@ class RoomInterface {
     uint32_t last_full_send = 0; // Last time the downlink was sent
     char* downlink_target_device = nullptr;
 
+    [[noreturn]] static void interfaceLoop(void *pvParameters);
+
+    [[noreturn]] static void eventLoop(void *pvParameters);
+
+    [[noreturn]] static void interfaceHealthCheck(void* pvParameters);
+
 public:
 
     RoomInterface() = default;
@@ -121,12 +127,6 @@ public:
     void sendDownlink(); // Send the uplink data to the network interface.
 
     void downlinkNow(char* target_device); // Set the uplink semaphore to send the uplink now instead of waiting for next timer.
-
-    static void interfaceLoop(void *pvParameters);
-
-    static void eventLoop(void *pvParameters);
-
-    static void interfaceHealthCheck(void* pvParameters);
 
     void sendEvent(ParsedEvent_t* event);
 

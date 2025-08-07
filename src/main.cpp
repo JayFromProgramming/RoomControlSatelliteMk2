@@ -6,16 +6,16 @@
 #include "ControllerInterface/RoomInterface.h"
 #include <esp_task_wdt.h>
 #include <esp_partition.h>
+#include <esp_freertos_hooks.h>
 #include "build_info.h"
 #include "secrets.h"
-// #include <Devices/BlueStalker.h>
-// #include <esp32/rom/ets_sys.h>
 
 // #define DEBUG 0
 
 extern RoomInterface MainRoomInterface;
-volatile uint32_t idle_tick_count = 0;
-volatile uint32_t idle_count;
+volatile uint32_t idle_tick_count_app = 0;
+volatile uint32_t idle_tick_count_pro = 0;
+volatile float_t mcu_load = 0.0f;
 
 Radiator* radiator;
 MotionDetector* motionDetector;
@@ -45,11 +45,14 @@ void current_time(char* buffer) {
     strftime(buffer, 80, "%m/%d/%Y %H:%M:%S", &timeinfo);
 }
 
-[[noreturn]] void idle_task(void* pvParameters) {
-    for (;;) {
-        idle_tick_count++;
-        vTaskDelay(1);
-    }
+bool pro_idle_task() {
+    idle_tick_count_pro++;
+    return true;
+}
+
+bool app_idle_task() {
+    idle_tick_count_app++;
+    return true;
 }
 
 void setup() {
@@ -70,15 +73,41 @@ void setup() {
     DEBUG_PRINT("Task startup complete.");
     esp_task_wdt_init(20, true);
     DEBUG_PRINT("Remaining Free Heap: %d bytes", esp_get_free_heap_size());
-    xTaskCreate(idle_task, "idle_task", 1024, nullptr, 0, nullptr);
+    auto result = esp_register_freertos_idle_hook_for_cpu(&app_idle_task, APP_CPU_NUM);
+    if (result != ESP_OK) {
+        DEBUG_PRINT("Failed to register app idle hook: %s", esp_err_to_name(result));
+    }
+    result = esp_register_freertos_idle_hook_for_cpu(&pro_idle_task, PRO_CPU_NUM);
+    if (result != ESP_OK) {
+        DEBUG_PRINT("Failed to register pro idle hook: %s", esp_err_to_name(result));
+    }
+
 }
 
 [[noreturn]] void loop() {
-    TickType_t last_wake_time = xTaskGetTickCount();
+    TickType_t interval_tick = xTaskGetTickCount();
+    TickType_t last_wake_tick = xTaskGetTickCount();
     for (;;) {
         // Determine how many times the idle task has run since this task last ran
-        idle_count = idle_tick_count;
-        idle_tick_count = 0; // Reset the idle tick count
-        vTaskDelayUntil(&last_wake_time, 1000 / portTICK_PERIOD_MS); // Delay for 1 second
+        const auto ticks_since_last_run = xTaskGetTickCount() - last_wake_tick;
+        if (ticks_since_last_run == 0) {
+            vTaskDelay(1); // Prevent div by zero
+            continue;
+        }
+        float_t app_load = (idle_tick_count_app * 100.0f) / static_cast<float_t>(ticks_since_last_run);
+        float_t pro_load = (idle_tick_count_pro * 100.0f) / static_cast<float_t>(ticks_since_last_run);
+        app_load = 100.0f - app_load; // Convert idle count to load percentage
+        pro_load = 100.0f - pro_load; // Convert idle count to load
+
+        // Calculate the idle count for each CPU
+        idle_tick_count_app = 0;
+        idle_tick_count_pro = 0;
+        // Calculate the CPU load as a percentage
+        mcu_load = ((app_load + pro_load) / 2.0f);
+        DEBUG_PRINT("MCU Load: %.02f%% | App CPU Load: %.02f%% | Pro CPU Load: %.02f%%",
+            mcu_load, app_load, pro_load);
+        last_wake_tick = xTaskGetTickCount(); // Update the last wake tick
+        vTaskDelayUntil(&interval_tick, 1000 / portTICK_PERIOD_MS); // Delay for 1 second
+
     }
 }

@@ -7,7 +7,7 @@
 
 class RoomDevice;
 
-volatile extern uint32_t idle_count; // Global variable to track idle tick count
+volatile extern float_t mcu_load; // Global variable to track idle tick count
 
 // Instantiate the singleton instance of the RoomInterface
 auto MainRoomInterface = RoomInterface();
@@ -31,8 +31,8 @@ void RoomInterface::begin(const char* device_name, const char* device_version, c
         this,2, &roomInterfaceTaskHandle);
     xTaskCreate(eventLoop, "eventLoop",8192,
         this, 2, &eventLoopTaskHandle);
-    xTaskCreate(interfaceHealthCheck,"interfaceHealthCheck",1024,
-        this, 0, &interfaceHealthCheckTaskHandle);
+    xTaskCreate(interfaceHealthCheck,"interfaceHealth",1800,
+        this, 1, &interfaceHealthCheckTaskHandle);
     startDeviceLoops();
     DEBUG_PRINT("Room Interface Initialized");
 }
@@ -80,7 +80,7 @@ void RoomInterface::sendDownlink() {
     root["mcu_uptime"] = millis() / 1000; // Uptime in seconds
     root["free_heap"] = esp_get_free_heap_size(); // Free heap size in bytes
     root["mcu_temp"] = temperatureRead(); // MCU temperature in degrees Celsius
-    root["cpu_idle"] = idle_count; // CPU idle count
+    root["mcu_load"] = mcu_load; // CPU idle count
     root["objects"] = JsonObject();
     root["msg_type"] = "state_update"; // This is a downlink message
     for (auto current = devices; current != nullptr; current = current->next) {

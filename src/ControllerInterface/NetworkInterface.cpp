@@ -71,8 +71,8 @@ void NetworkInterface::begin(const char* device_info_ptr, const size_t info_leng
     // esp_task_wdt_add(system_tasks[0].handle);
     xTaskCreate(downlink_task,"downlink_task", 8192,
         this,1, &this->downlink_task_handle);
-    xTaskCreate(poll_uplink_buffer,"uplink_task", 16384,
-        this,1 , &this->uplink_task_handle);
+    xTaskCreatePinnedToCore(poll_uplink_buffer,"uplink_task", 16384,
+        this,0, &this->uplink_task_handle, PRO_CPU_NUM);
     this->update_handler->begin();
     esp_task_wdt_add(this->downlink_task_handle);
     esp_task_wdt_add(this->uplink_task_handle);
