@@ -104,8 +104,8 @@ void setup() {
         idle_tick_count_pro = 0;
         // Calculate the CPU load as a percentage
         mcu_load = ((app_load + pro_load) / 2.0f);
-        DEBUG_PRINT("MCU Load: %.02f%% | App CPU Load: %.02f%% | Pro CPU Load: %.02f%%",
-            mcu_load, app_load, pro_load);
+        // DEBUG_PRINT("MCU Load: %.02f%% | App CPU Load: %.02f%% | Pro CPU Load: %.02f%%",
+            // mcu_load, app_load, pro_load);
         last_wake_tick = xTaskGetTickCount(); // Update the last wake tick
         vTaskDelayUntil(&interval_tick, 1000 / portTICK_PERIOD_MS); // Delay for 1 second
 

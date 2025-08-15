@@ -81,6 +81,7 @@ void RoomInterface::sendDownlink() {
     root["free_heap"] = esp_get_free_heap_size(); // Free heap size in bytes
     root["mcu_temp"] = temperatureRead(); // MCU temperature in degrees Celsius
     root["mcu_load"] = mcu_load; // CPU idle count
+    root["sig_strength"] = WiFi.RSSI(); // Signal strength in dBm
     root["objects"] = JsonObject();
     root["msg_type"] = "state_update"; // This is a downlink message
     for (auto current = devices; current != nullptr; current = current->next) {
