@@ -21,8 +21,8 @@ void MotionDetector::pinISR() {
 }
 
 void MotionDetector::startTask(TaskHandle_t *taskHandle) {
-    xTaskCreate(MotionDetector::RTOSLoop, "MotionDetector",
-        4096, this, 1, taskHandle);
+//    xTaskCreate(MotionDetector::RTOSLoop, "MotionDetector",
+//        4096, this, 1, taskHandle);
 }
 
 [[noreturn]] void MotionDetector::RTOSLoop(void* pvParameters) {
