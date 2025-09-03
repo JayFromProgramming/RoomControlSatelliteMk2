@@ -65,7 +65,7 @@ void setup() {
     configTime(0, 0, "time.mtu.edu", "pool.ntp.org", "time.nist.gov");
     MainRoomInterface.setNetworkCredentials(WIFI_SSID, WIFI_PASSWORD,
         CENTRAL_HOST, CENTRAL_PORT);
-    radiator          = new Radiator();
+    // radiator          = new Radiator();
     motionDetector    = new MotionDetector();
     environmentSensor = new EnvironmentSensor();
     DEBUG_PRINT("Starting up all Tasks...");
