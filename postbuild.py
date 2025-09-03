@@ -3,7 +3,7 @@ import requests
 
 
 class FirmwareMover:
-    endpoint = 'http://localhost/satellite_firmware_upload'
+    endpoint = 'http://moldy.mug.loafclan.org/satellite_firmware_upload'
 
     def __init__(self):
         self.build_version = ''

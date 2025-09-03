@@ -13,7 +13,7 @@ EnvironmentSensor::EnvironmentSensor() {
 
 void EnvironmentSensor::startTask(TaskHandle_t* taskHandle) {
     xTaskCreate(EnvironmentSensor::RTOSLoop,
-        "EnvironmentSensor", STACK_SIZE, this, PRIORITY, taskHandle);
+        "EnvSensor", STACK_SIZE, this, PRIORITY, taskHandle);
 }
 
 float_t EnvironmentSensor::celsiusToFahrenheit(const float_t celsius) {

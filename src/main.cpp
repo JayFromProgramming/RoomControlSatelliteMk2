@@ -84,9 +84,10 @@ void setup() {
 
 }
 
-[[noreturn]] void loop() {
+void loop() {
     TickType_t interval_tick = xTaskGetTickCount();
     TickType_t last_wake_tick = xTaskGetTickCount();
+    // ReSharper disable once CppDFAEndlessLoop
     for (;;) {
         // Determine how many times the idle task has run since this task last ran
         const auto ticks_since_last_run = xTaskGetTickCount() - last_wake_tick;

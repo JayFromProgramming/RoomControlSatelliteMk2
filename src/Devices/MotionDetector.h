@@ -15,7 +15,7 @@ public:
 
     const char* object_name = "MotionDetector";
     const char* object_type = "MotionDetector";
-    boolean motionDetected = false;
+    int motionDetected = false;
     time_t lastMotionTime = 0;
 
     char* getObjectName() override {

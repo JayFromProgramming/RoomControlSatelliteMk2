@@ -25,7 +25,7 @@ public:
     const char* object_name;
 
     const uint16_t PRIORITY = 1; // Default priority is the lowest
-    const uint16_t STACK_SIZE = 4096;
+    const uint16_t STACK_SIZE = 4096 * 2;
 
     JsonDocument deviceData;
 

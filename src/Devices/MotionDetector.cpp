@@ -18,11 +18,13 @@ MotionDetector::MotionDetector() {
 
 void MotionDetector::pinISR() {
     xSemaphoreGiveFromISR(motionEventMutex, nullptr);
+    // Get the state of the pin to determine which edge triggered the interrupt
+
 }
 
 void MotionDetector::startTask(TaskHandle_t *taskHandle) {
-//    xTaskCreate(MotionDetector::RTOSLoop, "MotionDetector",
-//        4096, this, 1, taskHandle);
+    xTaskCreate(MotionDetector::RTOSLoop, "MotionDetector",
+        STACK_SIZE, this, PRIORITY, taskHandle);
 }
 
 [[noreturn]] void MotionDetector::RTOSLoop(void* pvParameters) {
@@ -30,6 +32,7 @@ void MotionDetector::startTask(TaskHandle_t *taskHandle) {
     DEBUG_PRINT("Motion Detector Loop Started");
     while (true) {
         if (xSemaphoreTake(motionEventMutex, portMAX_DELAY) == pdTRUE) {
+            DEBUG_PRINT("Motion Detector Interrupt Triggered");
             // Read the pin state to determine which edge triggered the interrupt
             self->motionDetected = digitalRead(MOTION_DETECTOR_PIN);
             DEBUG_PRINT("Motion Detected: %d\n", self->motionDetected);
@@ -51,8 +54,8 @@ void MotionDetector::startTask(TaskHandle_t *taskHandle) {
             event->args[0].type = ParsedArg::BOOL;
             event->args[0].value.boolVal = self->motionDetected;
             MotionDetector::sendEvent(event);
-        }
-    }
+            DEBUG_PRINT("Motion Detector Event Sent");
+        }}
 }
 
 JsonVariant MotionDetector::getDeviceData() {
