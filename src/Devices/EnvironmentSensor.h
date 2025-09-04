@@ -15,7 +15,7 @@ class EnvironmentSensor final : public RoomDevice {
 public:
 
     const char* object_type = "EnvironmentSensor";
-    const char* object_name = "LivingRoomSensor";
+    const char* object_name = "EnvironmentSensor";
 
     float_t temperature = 0;
     float_t humidity = 0;
